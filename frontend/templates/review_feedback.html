@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Review Phản Hồi Sai</title>
+    <link rel="stylesheet" href="/static/review_feedback.css">
+</head>
+
+<body>
+    <h2>🧠 Review Phản Hồi Sai</h2>
+    <input type="text" id="search" placeholder="Tìm kiếm user input..." onkeyup="filterFeedback()" />
+    <table id="feedback-table">
+        <thead>
+            <tr>
+                <th>User Input</th>
+                <th>Intent Sai</th>
+                <th>Response Sai</th>
+                <th>Intent Đúng</th>
+                <th>Thao tác</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in feedbacks %}
+            <tr>
+                <td>{{ item.user_input }}</td>
+                <td>{{ item.intent }}</td>
+                <td>{{ item.response_sai }}</td>
+                <td>
+                    <select id="intent_{{ loop.index }}"></select>
+                </td>
+                <td>
+                    <button onclick="submitCorrection('{{ item.user_input }}', 'intent_{{ loop.index }}')">Lưu</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <form action="/retrain" method="post" onsubmit="return confirm('Bạn có chắc muốn huấn luyện lại mô hình?');">
+        <button type="submit">🔁 Huấn luyện lại mô hình</button>
+    </form>
+
+    <script>
+        const API_BASE_URL = window.CHATBOT_API_URL || "http://localhost:8000";
+
+        async function loadIntents() {
+            const res = await fetch(`${API_BASE_URL}/intents`);
+            const intents = await res.json();
+            document.querySelectorAll("select").forEach(select => {
+                select.innerHTML = intents.map(intent => `<option value="${intent.tag}">${intent.tag}</option>`).join("");
+            });
+        }
+
+        function filterFeedback() {
+            const search = document.getElementById("search").value.toLowerCase();
+            const rows = document.querySelectorAll("#feedback-table tbody tr");
+            rows.forEach(row => {
+                const userInput = row.cells[0].textContent.toLowerCase();
+                row.style.display = userInput.includes(search) ? "" : "none";
+            });
+        }
+
+        async function submitCorrection(userInput, selectId) {
+            const intent = document.getElementById(selectId).value;
+            const res = await fetch(`${API_BASE_URL}/correct_feedback`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    user_input: userInput,
+                    correct_intent: intent
+                })
+            });
+
+            const result = await res.json();
+            if (result.status === "success") {
+                alert("✅ Đã lưu phản hồi.");
+                location.reload();
+            } else {
+                alert("❌ Có lỗi khi lưu.");
+            }
+        }
+
+        window.onload = loadIntents;
+    </script>
+</body>
+
+</html>

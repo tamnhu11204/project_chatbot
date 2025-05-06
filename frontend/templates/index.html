@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Mini Chatbot</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuidv4.min.js"></script>
+</head>
+
+<body>
+    <div class="chat-container">
+        <div class="chat-box" id="chat-box"></div>
+        <div class="input-box">
+            <input type="text" id="user-input" placeholder="Nhập tin nhắn..." />
+            <button onclick="sendMessage()">Gửi</button>
+            <button onclick="sendToAdmin(document.getElementById('user-input').value)">Hỗ trợ</button>
+        </div>
+        <input type="file" id="media-input" accept="image/*" onchange="sendMedia()" />
+    </div>
+    <script>
+        const API_BASE_URL = window.CHATBOT_API_URL || "http://localhost:8000";
+        const BE_API_URL = "http://localhost:3001";
+        let user = localStorage.getItem('user');
+        let token = localStorage.getItem('access_token');
+        let userId = null;
+        let isGuest = false;
+
+        console.log('Raw localStorage:', {
+            user: localStorage.getItem('user'),
+            user_id: localStorage.getItem('user_id'),
+            access_token: localStorage.getItem('access_token'),
+            chatbot_userId: localStorage.getItem('chatbot_userId')
+        });
+
+        if (user && token) {
+            try {
+                const userObj = JSON.parse(user);
+                token = JSON.parse(token);
+                userId = userObj._id;
+                console.log('Parsed userId:', userId);
+                console.log('Parsed token:', token);
+                if (!userId) {
+                    console.error('No _id in user object:', userObj);
+                    userId = `guest_${uuidv4()}`;
+                    isGuest = true;
+                }
+            } catch (e) {
+                console.error("Lỗi parse user hoặc token:", e);
+                userId = `guest_${uuidv4()}`;
+                isGuest = true;
+            }
+        } else {
+            console.warn('Missing user or token in localStorage:', { user, token });
+            userId = `guest_${uuidv4()}`;
+            isGuest = true;
+        }
+        localStorage.setItem('user_id', userId);
+        if (isGuest) {
+            localStorage.setItem('chatbot_userId', userId);
+        }
+
+        console.log('Initial userId:', userId);
+        console.log('Access token:', token);
+        console.log('Is guest:', isGuest);
+        let isAdminChat = false;
+        let latestMessage = '';
+
+        // Lắng nghe thay đổi localStorage
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'user' || event.key === 'access_token') {
+                console.log('localStorage updated:', event.key, event.newValue);
+                window.location.reload();
+            }
+        });
+
+        // Kiểm tra lại localStorage định kỳ
+        async function checkLocalStorage() {
+            user = localStorage.getItem('user');
+            token = localStorage.getItem('access_token');
+            if (user && token && !userId) {
+                try {
+                    const userObj = JSON.parse(user);
+                    token = JSON.parse(token);
+                    userId = userObj._id;
+                    isGuest = false;
+                    console.log('Updated userId after storage change:', userId);
+                    localStorage.setItem('user_id', userId);
+                } catch (e) {
+                    console.error('Error re-parsing localStorage:', e);
+                }
+            }
+        }
+
+        // Kiểm tra mỗi 1 giây
+        setInterval(checkLocalStorage, 1000);
+
+        const socket = io(BE_API_URL);
+        socket.on('supportRequest', (data) => {
+            if (data.userId === userId) {
+                const chatBox = document.getElementById('chat-box');
+                chatBox.innerHTML += `<div class="bot-message"><div>bot: Admin đang hỗ trợ bạn!</div></div>`;
+                isAdminChat = true;
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        });
+
+        async function sendFeedback(userMessage, botReply, feedbackType) {
+            try {
+                await fetch(`${API_BASE_URL}/feedback`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        user_input: userMessage,
+                        bot_response: botReply,
+                        feedback: feedbackType
+                    })
+                });
+                const chatBox = document.getElementById('chat-box');
+                if (feedbackType === 'dislike') {
+                    const correctIntent = prompt('Intent đúng là gì?');
+                    if (correctIntent) {
+                        await sendToAdmin(`Khách hàng không hài lòng với phản hồi cho: ${userMessage}`);
+                    }
+                } else {
+                    chatBox.innerHTML += `<div class="bot-message"><div>bot: Cảm ơn bạn đã phản hồi!</div></div>`;
+                }
+                chatBox.scrollTop = chatBox.scrollHeight;
+            } catch (error) {
+                console.error("Error sending feedback:", error);
+                alert("Lỗi khi gửi phản hồi.");
+            }
+        }
+
+        async function sendToAdmin(message) {
+            console.log('Sending support request with userId:', userId);
+            console.log('Token being sent:', token);
+            console.log('Request headers:', { "Content-Type": "application/json", ...(token && !isGuest ? { "Authorization": `Bearer ${token}` } : {}) });
+            try {
+                const headers = { "Content-Type": "application/json" };
+                if (!isGuest && token) {
+                    headers["Authorization"] = `Bearer ${token}`;
+                }
+                const response = await fetch(`${BE_API_URL}/api/chat/support`, {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify({
+                        userId,
+                        message: `Yêu cầu hỗ trợ: ${message || 'Khách hàng cần hỗ trợ'}`
+                    })
+                });
+                if (!response.ok) throw new Error(`Support API failed: ${response.status}`);
+                const chatBox = document.getElementById('chat-box');
+                chatBox.innerHTML += `<div class="bot-message"><div>bot: Đã gửi yêu cầu hỗ trợ đến admin!</div></div>`;
+                isAdminChat = true;
+                chatBox.scrollTop = chatBox.scrollHeight;
+            } catch (error) {
+                console.error("Lỗi khi gửi yêu cầu hỗ trợ:", error);
+                alert("Lỗi khi gửi yêu cầu hỗ trợ.");
+            }
+        }
+
+        async function sendMedia() {
+            const fileInput = document.getElementById("media-input");
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append("file", file);
+            try {
+                const headers = {};
+                if (!isGuest && token) {
+                    headers["Authorization"] = `Bearer ${token}`;
+                }
+                await fetch(`${API_BASE_URL}/upload`, {
+                    method: "POST",
+                    headers,
+                    body: formData
+                });
+                const chatBox = document.getElementById('chat-box');
+                chatBox.innerHTML += `<div class="bot-message"><div>bot: Đã gửi file đến admin.</div></div>`;
+                chatBox.scrollTop = chatBox.scrollHeight;
+                fileInput.value = "";
+            } catch (error) {
+                console.error("Lỗi khi gửi file:", error);
+                alert("Lỗi khi gửi file.");
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById("user-input");
+            const message = input.value.trim();
+            if (!message) return;
+
+            latestMessage = message;
+            const chatBox = document.getElementById('chat-box');
+            const userDiv = document.createElement("div");
+            userDiv.className = "user-message";
+            userDiv.textContent = message;
+            chatBox.appendChild(userDiv);
+
+            if (isAdminChat) {
+                console.log('Sending live message with userId:', userId);
+                console.log('Token being sent:', token);
+                console.log('Request headers:', { "Content-Type": "application/json", ...(token && !isGuest ? { "Authorization": `Bearer ${token}` } : {}) });
+                try {
+                    const headers = { "Content-Type": "application/json" };
+                    if (!isGuest && token) {
+                        headers["Authorization"] = `Bearer ${token}`;
+                    }
+                    await fetch(`${BE_API_URL}/api/chat/send`, {
+                        method: "POST",
+                        headers,
+                        body: JSON.stringify({ userId, message })
+                    });
+                    input.value = "";
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                    return;
+                } catch (error) {
+                    console.error("Lỗi gửi tin nhắn live:", error);
+                    alert("Lỗi khi gửi tin nhắn.");
+                }
+            }
+
+            const loadingDiv = document.createElement("div");
+            loadingDiv.className = "loading";
+            loadingDiv.textContent = "Đang xử lý...";
+            chatBox.appendChild(loadingDiv);
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/predict`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message })
+                });
+
+                chatBox.removeChild(loadingDiv);
+                if (!res.ok) throw new Error(`Predict API failed: ${res.status}`);
+
+                const data = await res.json();
+                const botDiv = document.createElement("div");
+                botDiv.className = "bot-message";
+                const responseText = document.createElement("div");
+                responseText.textContent = data.response;
+                botDiv.appendChild(responseText);
+
+                const feedbackDiv = document.createElement("div");
+                feedbackDiv.innerHTML = `
+            <button onclick="sendFeedback('${message.replace(/'/g, "\\'")}', '${data.response.replace(/'/g, "\\'")}', 'like')">👍</button>
+            <button onclick="sendFeedback('${message.replace(/'/g, "\\'")}', '${data.response.replace(/'/g, "\\'")}', 'dislike')">👎</button>
+        `;
+                botDiv.appendChild(feedbackDiv);
+
+                chatBox.appendChild(botDiv);
+                input.value = "";
+                chatBox.scrollTop = chatBox.scrollHeight;
+
+                if (data.intent === "fallback" || data.confidence < 0.5 || data.intent === "support") {
+                    await sendToAdmin(message);
+                }
+            } catch (error) {
+                chatBox.removeChild(loadingDiv);
+                console.error("Error in sendMessage:", error);
+                await sendToAdmin(`Chatbot lỗi khi xử lý: ${message}`);
+            }
+        }
+
+        let lastMessageCount = 0;
+        setInterval(async () => {
+            if (!isAdminChat) {
+                try {
+                    const headers = {};
+                    if (!isGuest && token) {
+                        headers["token"] = `Bearer ${token}`;
+                    }
+                    console.log('Fetching conversation with headers:', headers);
+                    const res = await fetch(`${BE_API_URL}/api/chat/conversation/${userId}`, {
+                        headers
+                    });
+                    if (!res.ok) {
+                        throw new Error(`API failed: ${res.status} ${res.statusText}`);
+                    }
+                    const data = await res.json();
+                    const messages = Array.isArray(data) ? data : (data.messages || []);
+
+                    const chatBox = document.getElementById('chat-box');
+                    if (messages.length !== lastMessageCount) {
+                        chatBox.innerHTML = '';
+                        if (Array.isArray(messages)) {
+                            messages.forEach((msg) => {
+                                const div = document.createElement('div');
+                                div.className = msg.sender === 'user' ? 'user-message' : 'bot-message';
+                                div.textContent = `${msg.sender}: ${msg.message}`;
+                                chatBox.appendChild(div);
+                            });
+                        } else {
+                            console.warn('Messages is not an array:', messages);
+                        }
+                        lastMessageCount = messages.length;
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                    }
+                } catch (error) {
+                    console.error('Lỗi lấy tin nhắn live:', error);
+                }
+            }
+        }, 1000);
+    </script>
+    <script>
+        window.addEventListener("message", function (event) {
+            if (event.data?.type === "USER_DATA") {
+                const { user, token } = event.data.payload;
+                console.log("Nhận dữ liệu từ FE:", user, token);
+
+                // Ghi vào localStorage (của chatbot)
+                localStorage.setItem("user", JSON.stringify(user));
+                localStorage.setItem("access_token", JSON.stringify(token));
+
+                // Khởi chạy chatbot với user nếu cần
+                // initChat(user, token);  // Uncomment nếu cần gọi hàm khởi tạo chatbot với dữ liệu người dùng
+            }
+        });
+    </script>
+
+</body>
+
+</html>

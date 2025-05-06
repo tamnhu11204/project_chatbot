@@ -1,0 +1,103 @@
+{
+    "intents": [
+        {
+            "tag": "book_price",
+            "patterns": [
+                "giá sách bao nhiêu",
+                "sách này giá thế nào",
+                "giá sách là bao nhiêu",
+                "bao nhiêu tiền",
+                "sách giá bao nhiêu",
+                "giá cuốn sách này",
+                "sách này bao tiền",
+                "check giá sách giúp mình"
+            ],
+            "responses": [
+                "Vui lòng cung cấp tên sách để mình kiểm tra giá nhé!",
+                "Bạn muốn hỏi giá sách nào? Nói mình biết nha!"
+            ]
+        },
+        {
+            "tag": "find_book",
+            "patterns": [
+                "tìm sách",
+                "có sách gì hay",
+                "sách này có không",
+                "tìm sách tên",
+                "có sách nào về",
+                "sách về khoa học",
+                "tìm sách Harry Potter",
+                "có sách trinh thám không"
+            ],
+            "responses": [
+                "Bạn muốn tìm sách gì? Cung cấp tên hoặc thể loại nhé!",
+                "Hãy cho mình biết tên sách hoặc chủ đề bạn cần!"
+            ]
+        },
+        {
+            "tag": "order_book",
+            "patterns": [
+                "đặt sách",
+                "mua sách",
+                "order sách",
+                "cách đặt sách",
+                "mua sách như thế nào",
+                "mình muốn mua sách",
+                "đặt cuốn sách này",
+                "order sách Harry Potter"
+            ],
+            "responses": [
+                "Bạn muốn đặt sách nào? Mình sẽ hướng dẫn cách đặt nhé!",
+                "Để đặt sách, bạn cung cấp tên sách và thông tin liên hệ nha!"
+            ]
+        },
+        {
+            "tag": "support",
+            "patterns": [
+                "hỗ trợ",
+                "cần giúp",
+                "liên hệ admin",
+                "gọi hỗ trợ",
+                "admin đâu",
+                "mình cần hỗ trợ gấp",
+                "shop hỗ trợ thế nào",
+                "có ai giúp mình không"
+            ],
+            "responses": [
+                "Mình sẽ chuyển yêu cầu của bạn đến admin ngay!",
+                "Đã gửi yêu cầu hỗ trợ. Admin sẽ liên hệ sớm!"
+            ]
+        },
+        {
+            "tag": "promotion",
+            "patterns": [
+                "khuyến mãi",
+                "có ưu đãi gì",
+                "sách giảm giá không",
+                "promo hôm nay",
+                "có deal nào hot không",
+                "sách sale bao nhiêu",
+                "ưu đãi sách"
+            ],
+            "responses": [
+                "Hiện tại shop có chương trình giảm giá 20% cho sách văn học. Bạn muốn xem chi tiết không?",
+                "Có khuyến mãi cho sách thiếu nhi nè! Bạn cần mình gửi danh sách không?"
+            ]
+        },
+        {
+            "tag": "order_status",
+            "patterns": [
+                "đơn hàng của mình đâu",
+                "trạng thái đơn hàng",
+                "check đơn hàng giúp",
+                "sách mình đặt tới đâu rồi",
+                "đơn hàng giao chưa",
+                "mình đặt sách hôm qua"
+            ],
+            "responses": [
+                "Vui lòng cung cấp mã đơn hàng để mình kiểm tra trạng thái nhé!",
+                "Bạn cho mình mã đơn hàng để mình check giúp nha!"
+            ]
+        }
+    ]
+}
