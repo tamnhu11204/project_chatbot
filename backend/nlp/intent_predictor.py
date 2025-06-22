@@ -1,55 +1,78 @@
+import os
+import json
+import joblib
 import torch
-import numpy as np
 from transformers import AutoTokenizer
 from backend.nlp.intent_model import IntentModel
-from backend.nlp.text_preprocessing import clean_text
-from backend.config.settings import MODEL_PATH, LABEL_ENCODER_PATH
+from backend.config.settings import INTENTS_PATH, BOOK_INTENTS_PATH, LABEL_ENCODER_PATH
 
+MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "phobert_finetuned")
 
-class IntentPredictor:
-    def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.tokenizer = AutoTokenizer.from_pretrained("vinai/phobert-base")
-        self.model = IntentModel(
-            num_classes=len(np.load(LABEL_ENCODER_PATH, allow_pickle=True))
-        )
-        self.model.load_state_dict(torch.load(MODEL_PATH, map_location=self.device))
-        self.model.to(self.device)
-        self.model.eval()
-        self.label_encoder = np.load(LABEL_ENCODER_PATH, allow_pickle=True)
-        print(f"Debug: Loaded intents = {self.label_encoder}")
+def load_intents():
+    intents_data = []
+    if os.path.exists(INTENTS_PATH):
+        try:
+            with open(INTENTS_PATH, "r", encoding="utf-8") as f:
+                intents_data.extend(json.load(f)["intents"])
+        except Exception as e:
+            raise Exception(f"Failed to load intents.json: {e}")
+    else:
+        raise FileNotFoundError(f"intents.json not found at {INTENTS_PATH}")
 
-    def predict(self, text):
-        text = clean_text(text)
-        print(f"Debug: Cleaned text = {text}")
-        encoding = self.tokenizer(
-            text,
-            padding="max_length",
-            truncation=True,
-            max_length=64,
-            return_tensors="pt",
-        )
-        input_ids = encoding["input_ids"].to(self.device)
-        attention_mask = encoding["attention_mask"].to(self.device)
+    if os.path.exists(BOOK_INTENTS_PATH):
+        try:
+            with open(BOOK_INTENTS_PATH, "r", encoding="utf-8") as f:
+                intents_data.extend(json.load(f)["intents"])
+        except Exception as e:
+            print(f"Warning: Failed to load book_intents.json: {e}")
+    return intents_data
 
-        with torch.no_grad():
-            outputs = self.model(input_ids, attention_mask)
-            probabilities = torch.softmax(outputs, dim=1)
-            confidence, predicted = torch.max(probabilities, dim=1)
-            print(f"Debug: Probabilities = {probabilities.cpu().numpy()}")
+def load_model():
+    if not os.path.exists(MODEL_DIR):
+        raise FileNotFoundError(f"Model directory not found at {MODEL_DIR}. Run `python -m backend.nlp.train_model`")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR, local_files_only=True)
+    label_encoder = joblib.load(LABEL_ENCODER_PATH)
+    model = IntentModel(num_classes=len(label_encoder), dropout=0.3)
+    model_path = os.path.join(MODEL_DIR, "model.pt")
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found at {model_path}. Run `python -m backend.nlp.train_model`")
+    model.load_state_dict(torch.load(model_path, map_location=torch.device("cpu")))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    model.eval()
+    print(f"Debug: Loaded Transformer model from {MODEL_DIR}")
+    return model, tokenizer, label_encoder, device
 
-        intent = self.label_encoder[predicted.item()]
-        confidence_value = confidence.item()
-        if confidence_value < 0.15 and intent not in ["greeting", "support"]:
-            print(
-                f"Debug: Fallback triggered for intent = {intent}, confidence = {confidence_value}"
-            )
-            return "fallback", confidence_value
-        return intent, confidence_value
+def get_response(intent, intents_data, context=None):
+    for intent_data in intents_data:
+        if intent_data["tag"] == intent:
+            response = intent_data["responses"][0] if intent_data["responses"] else "Xin lỗi, tôi không hiểu."
+            if context and "book" in context:
+                response = f"{response} (Sách: {context['book']})"
+            return response
+    return "Xin lỗi, tôi không hiểu."
 
-
-predictor = IntentPredictor()
-
-
-def predict_intent(text):
-    return predictor.predict(text)
+def predict_intent(text, context=None):
+    print(f"Debug: Processing text='{text}', context={context}")
+    intents_data = load_intents()
+    model, tokenizer, label_encoder, device = load_model()
+    
+    inputs = tokenizer(
+        text,
+        return_tensors="pt",
+        truncation=True,
+        padding=True,
+        max_length=64
+    )
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    
+    with torch.no_grad():
+        outputs = model(inputs["input_ids"], inputs["attention_mask"])
+        probabilities = torch.softmax(outputs, dim=1)
+        confidence, predicted = torch.max(probabilities, 1)
+    
+    intent = label_encoder[predicted.item()]
+    confidence = confidence.item()
+    response = get_response(intent, intents_data, context)
+    print(f"Debug: Transformer predicts intent={intent}, confidence={confidence}")
+    return intent, confidence, response

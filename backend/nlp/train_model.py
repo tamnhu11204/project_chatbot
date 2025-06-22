@@ -1,20 +1,14 @@
 import os
-import sys
+import json
 import torch
 from torch.utils.data import DataLoader, Dataset
 from transformers import AutoTokenizer
 import numpy as np
-import json
-from torch.optim.lr_scheduler import LambdaLR
-
-sys.path.append(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
-
-from backend.nlp.intent_model import IntentModel
-from backend.config.settings import MODEL_PATH, LABEL_ENCODER_PATH, INTENTS_PATH
 from sklearn.model_selection import train_test_split
-
+from torch.optim.lr_scheduler import LambdaLR
+import joblib
+from backend.nlp.intent_model import IntentModel
+from backend.config.settings import INTENTS_PATH, BOOK_INTENTS_PATH, LABEL_ENCODER_PATH
 
 class IntentDataset(Dataset):
     def __init__(self, texts, labels, tokenizer, max_length=64):
@@ -42,10 +36,29 @@ class IntentDataset(Dataset):
             "labels": torch.tensor(label, dtype=torch.long),
         }
 
-
 def load_intents():
-    with open(INTENTS_PATH, "r", encoding="utf-8") as f:
-        intents = json.load(f)["intents"]
+    intents = []
+    print(f"Debug: Checking INTENTS_PATH: {INTENTS_PATH}")
+    if os.path.exists(INTENTS_PATH):
+        try:
+            with open(INTENTS_PATH, "r", encoding="utf-8-sig") as f:
+                intents.extend(json.load(f)["intents"])
+            print(f"Debug: Loaded {len(intents)} intents from intents.json")
+        except Exception as e:
+            raise Exception(f"Failed to load intents.json: {e}")
+    else:
+        raise FileNotFoundError(f"intents.json not found at {INTENTS_PATH}")
+
+    print(f"Debug: Checking BOOK_INTENTS_PATH: {BOOK_INTENTS_PATH}")
+    if os.path.exists(BOOK_INTENTS_PATH):
+        try:
+            with open(BOOK_INTENTS_PATH, "r", encoding="utf-8-sig") as f:
+                book_intents = json.load(f)["intents"]
+                intents.extend(book_intents)
+            print(f"Debug: Loaded {len(book_intents)} intents from book_intents.json")
+        except Exception as e:
+            raise Exception(f"Failed to load book_intents.json: {e}")
+
     texts, labels = [], []
     label_map = {intent["tag"]: idx for idx, intent in enumerate(intents)}
     for intent in intents:
@@ -54,12 +67,21 @@ def load_intents():
             labels.append(label_map[intent["tag"]])
     return texts, labels, label_map
 
-
-def train_and_save_model():
+def train_intent_model(intents_path=INTENTS_PATH, model_dir=None):
     tokenizer = AutoTokenizer.from_pretrained("vinai/phobert-base")
     texts, labels, label_map = load_intents()
     label_encoder = list(label_map.keys())
-    np.save(LABEL_ENCODER_PATH, label_encoder)
+    
+    if not label_encoder:
+        raise ValueError("label_encoder is empty")
+    print(f"Debug: label_encoder = {label_encoder}")
+    
+    if model_dir is None:
+        model_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "phobert_finetuned")
+    os.makedirs(model_dir, exist_ok=True)
+    
+    joblib.dump(label_encoder, LABEL_ENCODER_PATH)
+    print(f"✅ Đã lưu label_encoder: {LABEL_ENCODER_PATH}")
 
     train_texts, val_texts, train_labels, val_labels = train_test_split(
         texts, labels, test_size=0.2, random_state=42
@@ -71,8 +93,8 @@ def train_and_save_model():
     val_loader = DataLoader(val_dataset, batch_size=8)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = IntentModel(num_classes=len(label_encoder), dropout=0.3).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=5e-6, weight_decay=1e-3)
+    model = IntentModel(num_classes=len(label_encoder)).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=5e-5)
     criterion = torch.nn.CrossEntropyLoss()
 
     def lr_lambda(step):
@@ -115,29 +137,32 @@ def train_and_save_model():
                 labels = batch["labels"].to(device)
 
                 outputs = model(input_ids, attention_mask)
-                val_loss += criterion(outputs, labels).item()
-                _, predicted = torch.max(outputs, dim=1)
+                loss = criterion(outputs, labels)
+                val_loss += loss.item()
+
+                _, predicted = torch.max(outputs, 1)
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
 
         val_acc = correct / total
-        print(
-            f"Epoch {epoch+1} | Train Loss: {total_loss/len(train_loader):.4f} | "
-            f"Val Loss: {val_loss/len(val_loader):.4f} | Val Acc: {val_acc:.4f}"
-        )
+        val_loss /= len(val_loader)
+        print(f"Epoch {epoch + 1} | Train Loss: {total_loss / len(train_loader):.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            torch.save(model.state_dict(), MODEL_PATH)
+            torch.save(model.state_dict(), os.path.join(model_dir, "model.pt"))
+            tokenizer.save_pretrained(model_dir)
+            print(f"✅ Đã lưu mô hình Transformer và tokenizer tại: {model_dir}")
             patience_counter = 0
         else:
             patience_counter += 1
-            if patience_counter >= patience:
-                print("Early stopping triggered.")
-                break
 
-    print("✅ Huấn luyện thành công! Model đã được lưu.")
+        if patience_counter >= patience:
+            print(f"Early stopping at epoch {epoch + 1}")
+            break
 
+    print(f"✅ Huấn luyện thành công! Model Transformer đã được lưu tại {model_dir}")
+    return model, tokenizer
 
 if __name__ == "__main__":
-    train_and_save_model()
+    train_intent_model()

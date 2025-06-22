@@ -10,28 +10,32 @@
                 "sách giá bao nhiêu",
                 "giá cuốn sách này",
                 "sách này bao tiền",
-                "check giá sách giúp mình"
+                "check giá sách giúp mình",
+                "sách {book_name} giá bao nhiêu",
+                "giá sách {book_name} là bao nhiêu",
+                "mình muốn biết giá sách {book_name}"
             ],
             "responses": [
                 "Vui lòng cung cấp tên sách để mình kiểm tra giá nhé!",
-                "Bạn muốn hỏi giá sách nào? Nói mình biết nha!"
+                "Bạn muốn hỏi giá sách nào? Nói mình biết nha!",
+                "Sách {book_name} có giá {price} VND. Bạn muốn biết thêm không?"
             ]
         },
         {
             "tag": "find_book",
             "patterns": [
-                "tìm sách",
-                "có sách gì hay",
-                "sách này có không",
-                "tìm sách tên",
-                "có sách nào về",
-                "sách về khoa học",
-                "tìm sách Harry Potter",
-                "có sách trinh thám không"
+                "Tìm sách {book_name}",
+                "Sách {book_name}",
+                "{book_name}",
+                "Tìm {book_name}",
+                "Có sách {book_name} không",
+                "Sách {book_name} đâu",
+                "{book_name} có không"
             ],
             "responses": [
                 "Bạn muốn tìm sách gì? Cung cấp tên hoặc thể loại nhé!",
-                "Hãy cho mình biết tên sách hoặc chủ đề bạn cần!"
+                "Hãy cho mình biết tên sách hoặc chủ đề bạn cần!",
+                "Mình tìm được sách {book_list}. Bạn muốn chi tiết sách nào?"
             ]
         },
         {
@@ -44,11 +48,14 @@
                 "mua sách như thế nào",
                 "mình muốn mua sách",
                 "đặt cuốn sách này",
-                "order sách Harry Potter"
+                "order sách Harry Potter",
+                "đặt sách {book_name}",
+                "mua sách {book_name} giúp mình"
             ],
             "responses": [
                 "Bạn muốn đặt sách nào? Mình sẽ hướng dẫn cách đặt nhé!",
-                "Để đặt sách, bạn cung cấp tên sách và thông tin liên hệ nha!"
+                "Để đặt sách, bạn cung cấp tên sách và thông tin liên hệ nha!",
+                "Bạn muốn đặt sách {book_name}? Mình sẽ chuyển yêu cầu đến admin!"
             ]
         },
         {
@@ -77,11 +84,15 @@
                 "promo hôm nay",
                 "có deal nào hot không",
                 "sách sale bao nhiêu",
-                "ưu đãi sách"
+                "ưu đãi sách",
+                "có khuyến mãi gì không",
+                "khuyến mãi sách là gì",
+                "giảm giá sách bao nhiêu"
             ],
             "responses": [
                 "Hiện tại shop có chương trình giảm giá 20% cho sách văn học. Bạn muốn xem chi tiết không?",
-                "Có khuyến mãi cho sách thiếu nhi nè! Bạn cần mình gửi danh sách không?"
+                "Có khuyến mãi cho sách thiếu nhi nè! Bạn cần mình gửi danh sách không?",
+                "Khuyến mãi hiện tại là 20% cho sách văn học. Bạn muốn biết thêm không?"
             ]
         },
         {
@@ -92,11 +103,43 @@
                 "check đơn hàng giúp",
                 "sách mình đặt tới đâu rồi",
                 "đơn hàng giao chưa",
-                "mình đặt sách hôm qua"
+                "mình đặt sách hôm qua",
+                "đơn hàng {order_id} đâu rồi",
+                "trạng thái đơn hàng {order_id}",
+                "check đơn {order_id} giúp mình"
             ],
             "responses": [
                 "Vui lòng cung cấp mã đơn hàng để mình kiểm tra trạng thái nhé!",
-                "Bạn cho mình mã đơn hàng để mình check giúp nha!"
+                "Bạn cho mình mã đơn hàng để mình check giúp nha!",
+                "Đơn hàng {order_id} đang ở trạng thái {status}. Bạn cần thêm thông tin không?"
+            ]
+        },
+        {
+            "tag": "book_details",
+            "patterns": [
+                "cho mình thông tin chi tiết sách {book_id}",
+                "sách {book_id} có nội dung gì",
+                "mô tả sách {book_id} đi",
+                "sách {book_id} chi tiết thế nào",
+                "thông tin chi tiết sách {book_id}",
+                "sách {book_id} có gì đặc biệt",
+                "chi tiết sách {book_id}",
+                "sách {book_id} chi tiết",
+                "cho mình chi tiết sách {book_id}",
+                "cho mình thông tin chi tiết sách {book_name}",
+                "sách {book_name} có nội dung gì",
+                "mô tả sách {book_name} đi",
+                "sách {book_name} chi tiết thế nào",
+                "thông tin chi tiết sách {book_name}",
+                "sách {book_name} có gì đặc biệt",
+                "chi tiết sách {book_name}",
+                "sách {book_name} chi tiết",
+                "cho mình chi tiết sách {book_name}"
+            ],
+            "responses": [
+                "Sách {book_name} có tiêu đề: {title}, giá: {price} VND, mô tả: {description}.",
+                "Thông tin chi tiết sách {book_name}: {title}, giá {price} VND, {description}.",
+                "Mình không tìm thấy chi tiết sách {book_name}. Bạn thử lại nhé!"
             ]
         }
     ]

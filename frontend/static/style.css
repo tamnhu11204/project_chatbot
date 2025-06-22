@@ -1,93 +1,159 @@
-:root {
-    --primary-color: #4CAF50;
-    --user-bg: #aee1f9;
-    --bot-bg: #e0e0e0;
-}
-
-body {
-    font-family: sans-serif;
-    background: #f4f4f4;
-    margin: 0;
-    padding: 20px;
-}
-
 .chat-container {
-    width: min(90vw, 400px);
-    margin: 0 auto;
-    border: 1px solid #ccc;
-    background: white;
-    border-radius: 5px;
-    overflow: hidden;
+    width: 320px;
+    height: 500px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    overflow: hidden !important;
+    box-sizing: border-box;
+    position: relative;
 }
 
 .chat-box {
-    height: 60vh;
-    max-height: 400px;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    padding: 10px;
-    border-bottom: 1px solid #ccc;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none;
 }
 
-.bot-message,
+.chat-box::-webkit-scrollbar {
+    display: none;
+}
+
+.user-message,
+.bot-message {
+    background-color: #198754;
+    color: white;
+    padding: 12px;
+    border-radius: 15px;
+    max-width: 70%;
+    position: relative;
+    word-break: break-word;
+}
+
 .user-message {
-    margin: 10px 0;
-    padding: 8px 12px;
-    border-radius: 10px;
-    max-width: 80%;
+    align-self: flex-end;
+    background-color: #198754;
+    margin: 5px 10px 5px 5px;
 }
 
 .bot-message {
-    background: var(--bot-bg);
+    align-self: flex-start;
+    background-color: #f1f1f1;
+    color: #333;
+    margin: 5px 5px 5px 10px;
 }
 
-.user-message {
-    background: var(--user-bg);
-    text-align: right;
-    margin-left: auto;
+.message-time {
+    position: absolute;
+    bottom: 2px;
+    left: 15px;
+    font-size: 10px;
+    color: #666;
+    opacity: 0.7;
+}
+
+.feedback-container {
+    position: absolute;
+    bottom: -5px;
+    right: 10px;
+    display: flex;
+    gap: 3px;
+}
+
+.feedback-icon {
+    font-size: 16px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.feedback-icon:hover {
+    opacity: 1;
+    transform: scale(1.2);
+}
+
+.feedback-icon.like {
+    color: #198754;
+}
+
+.feedback-icon.dislike {
+    color: #dc3545;
 }
 
 .input-box {
+    height: 60px;
+    /* Chiều cao cố định cho input-box */
+    width: 100%;
+    background: #fff;
+    padding: 10px;
     display: flex;
+    gap: 10px;
+    z-index: 10;
+    border-top: 1px solid #ddd;
+    /* Tạo đường phân cách với chat-box */
+    box-sizing: border-box;
 }
 
 #user-input {
-    flex: 1;
-    padding: 10px;
-    border: none;
-    border-top: 1px solid #ccc;
+    flex-grow: 1;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    outline: none;
 }
 
-button {
-    padding: 10px;
-    background: var(--primary-color);
+#send-button,
+.support-button {
+    padding: 5px 10px;
+    background: #198754;
     color: white;
     border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.input-box input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    margin-right: 10px;
+    outline: none;
+}
+
+.input-box button {
+    padding: 8px 15px;
+    border: none;
+    background-color: #96D347;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.input-box button:hover {
+    background-color: #198754;
+}
+
+.support-button {
+    background-color: #96D347;
+    margin-left: 5px;
+}
+
+.support-button:hover {
+    background-color: #198754;
 }
 
 .loading {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 10px;
     color: #666;
-}
-
-@media (prefers-color-scheme: dark) {
-    body {
-        background: #333;
-        color: #fff;
-    }
-
-    .chat-container {
-        background: #444;
-        border-color: #666;
-    }
-
-    .bot-message {
-        background: #555;
-    }
-
-    .user-message {
-        background: #007bff;
-    }
+    font-style: italic;
+    align-self: center;
 }

@@ -3,6 +3,7 @@ import json
 import os
 from backend.config.settings import MONGO_URI, MONGO_DB, INTENTS_PATH
 from datetime import datetime
+import nlpaug.augmenter.word as naw
 
 client = MongoClient(MONGO_URI)
 db = client[MONGO_DB]
@@ -71,3 +72,106 @@ def merge_suggestions():
 
 def is_valid_sentence(sentence):
     return len(sentence.strip()) >= 3 and not sentence.isspace()
+
+def generate_patterns_from_backend():
+    patterns = {
+        "find_book": [],
+        "book_price": [],
+        "stock_check": [],
+        "promotion": []
+    }
+    # Lấy dữ liệu sản phẩm
+    products = db["Product"].find()
+    for product in products:
+        name = product["name"]
+        author = product["author"]
+        category = product.get("category", "")
+        patterns["find_book"].extend([
+            f"Tìm sách {name}",
+            f"Sách của {author} có không?",
+            f"Tìm sách thuộc danh mục {category}"
+        ])
+        patterns["book_price"].extend([
+            f"Sách {name} giá bao nhiêu?",
+            f"Giá cuốn {name} là bao nhiêu?",
+            f"Sách {name} có giảm giá không?"
+        ])
+        patterns["stock_check"].extend([
+            f"Sách {name} còn hàng không?",
+            f"Còn bao nhiêu cuốn {name}?"
+        ])
+    # Lấy dữ liệu khuyến mãi
+    promotions = db["Promotion"].find()
+    for promo in promotions:
+        value = promo["value"]
+        patterns["promotion"].extend([
+            f"Có mã giảm giá {value}% không?",
+            f"Khuyến mãi {value}% còn áp dụng không?"
+        ])
+    return patterns
+
+def extract_from_live_chat():
+    messages = db["LiveChatMessage"].find({"sender": "user", "isHandled": True})
+    new_patterns = []
+    for msg in messages:
+        message = msg["message"]
+        # Phân loại dựa trên từ khóa (logic programming)
+        if any(kw in message.lower() for kw in ["tìm", "sách", "có"]):
+            new_patterns.append({"intent": "find_book", "pattern": message})
+        elif any(kw in message.lower() for kw in ["giá", "bao nhiêu"]):
+            new_patterns.append({"intent": "book_price", "pattern": message})
+        elif any(kw in message.lower() for kw in ["còn hàng", "tồn kho"]):
+            new_patterns.append({"intent": "stock_check", "pattern": message})
+        elif any(kw in message.lower() for kw in ["khuyến mãi", "giảm giá"]):
+            new_patterns.append({"intent": "promotion", "pattern": message})
+    return new_patterns
+
+def save_patterns():
+    backend_patterns = generate_patterns_from_backend()
+    live_chat_patterns = extract_from_live_chat()
+    intents = []
+    for intent in backend_patterns:
+        patterns = backend_patterns[intent] + [p["pattern"] for p in live_chat_patterns if p["intent"] == intent]
+        intents.append({"tag": intent, "patterns": patterns, "responses": []})
+    with open("new_intents.json", "w", encoding="utf-8") as f:
+        json.dump({"intents": intents}, f, ensure_ascii=False, indent=2)
+
+def analyze_live_chat():
+    messages = db["LiveChatMessage"].find({"sender": "user"})
+    patterns = []
+    for msg in messages:
+        message = msg["message"]
+        user_id = msg["user"]
+        admin_reply = db["LiveChatMessage"].find_one({
+            "sender": "admin",
+            "user": user_id,
+            "timestamp": {"$gt": msg["timestamp"]}
+        })
+        if admin_reply:
+            intent, _ = predict_intent(message)
+            patterns.append({
+                "intent": intent,
+                "pattern": message,
+                "response": admin_reply["message"]
+            })
+    return patterns
+
+def augment_patterns(patterns):
+    aug = naw.SynonymAug(aug_src='wordnet', lang='vie')
+    augmented = []
+    for pattern in patterns:
+        augmented.extend(aug.augment(pattern["pattern"], n=3))
+    return [{"intent": pattern["intent"], "pattern": aug} for aug in augmented]
+
+def update_intents():
+    patterns = analyze_live_chat()
+    augmented_patterns = augment_patterns(patterns)
+    intents = load_intents("intents.json")
+    for p in patterns + augmented_patterns:
+        for intent in intents["intents"]:
+            if intent["tag"] == p["intent"]:
+                intent["patterns"].append(p["pattern"])
+                if "response" in p:
+                    intent["responses"].append(p["response"])
+    with open("intents.json", "w", encoding="utf-8") as f:
+        json.dump(intents, f, ensure_ascii=False, indent=2)
