@@ -1,4 +1,5 @@
 import os
+import sys
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
@@ -13,6 +14,10 @@ import httpx
 from pymongo import MongoClient
 from datetime import datetime
 import logging
+
+# Thêm thư mục backend/ vào sys.path để tương thích cả cục bộ và Render
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(base_dir)
 
 # Tải biến môi trường từ .env
 load_dotenv()
