@@ -1,6 +1,9 @@
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
-from backend.nlp.intent_predictor import predict_intent
+from backend.config.settings import FACEBOOK_PAGE_TOKEN, FACEBOOK_VERIFY_TOKEN, BACKEND_API_URL, MONGO_URI, MONGO_DB
+from backend.logic.rules import get_response_from_rules
+from backend.nlp.feedback_handler import FeedbackHandler
+from backend.nlp.intent_updater import update_intents
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -8,9 +11,6 @@ from fastapi.responses import HTMLResponse, JSONResponse
 import httpx
 from pymongo import MongoClient
 from datetime import datetime
-import json
-import os
-from backend.nlp.retrain_manager import auto_retrain
 import logging
 
 app = FastAPI()
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # Cấu hình CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://localhost:3001", "http://localhost:3000"],
+    allow_origins=["http://localhost:8000", "http://localhost:3001", "http://localhost:3000", "https://bookish-web-frontend.onrender.com", "https://chatbot-frontend.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -34,13 +34,16 @@ templates = Jinja2Templates(directory="frontend/templates")
 
 # MongoDB connection
 try:
-    client = MongoClient("mongodb+srv://tamnhu11204:nhunguyen11204@cluster0.kezkc.mongodb.net/", serverSelectionTimeoutMS=5000)
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
     client.admin.command('ping')
     logger.info("MongoDB connected successfully")
 except Exception as e:
     logger.error(f"MongoDB connection failed: {e}")
     raise Exception(f"MongoDB connection failed: {e}")
-db = client["chatbot_db"]
+db = client[MONGO_DB]
+
+# Initialize FeedbackHandler
+feedback_handler = FeedbackHandler()
 
 class PredictRequest(BaseModel):
     message: str
@@ -52,12 +55,14 @@ class FeedbackRequest(BaseModel):
     user_input: str
     bot_response: str
     feedback: str
+    user_id: str = None
 
 class FeedbackCorrection(BaseModel):
     user_input: str
     correct_intent: str
 
 def save_message(user_id, message, response, intent, confidence, context=None, platform="website"):
+    """Save user and bot messages to MongoDB."""
     try:
         db["LiveChatMessage"].insert_one({
             "sender": "user",
@@ -80,9 +85,6 @@ def save_message(user_id, message, response, intent, confidence, context=None, p
     except Exception as e:
         logger.error(f"Failed to save message: {e}")
 
-def extract_book_name(message):
-    return message.split("sách")[-1].strip() if "sách" in message.lower() else ""
-
 @app.get("/chatbot-ui", response_class=HTMLResponse)
 async def get_chatbot_ui(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -90,60 +92,52 @@ async def get_chatbot_ui(request: Request):
 @app.post("/predict")
 async def predict(request: PredictRequest):
     try:
-        intent, confidence, response = predict_intent(request.message, request.context)
-        if intent == "book_price" and request.context.get("book"):
-            async with httpx.AsyncClient() as client:
-                product_response = await client.get(
-                    f"http://localhost:3001/api/product/get-all?filter=name,{request.context['book']}"
-                )
-                if product_response.status_code == 200 and product_response.json()["data"]:
-                    response = f"Giá sách {request.context['book']} là {product_response.json()['data'][0]['price']} VND."
+        response_data = await get_response_from_rules(
+            user_input=request.message,
+            session_id=request.session_id,
+            user_id=request.user_id,
+            context=request.context
+        )
         
-        new_context = request.context.copy()
-        if intent == "find_book":
-            new_context["book"] = extract_book_name(request.message)
-
         save_message(
-            request.user_id,
-            request.message,
-            response,
-            intent,
-            confidence,
-            new_context,
+            user_id=request.user_id,
+            message=request.message,
+            response=response_data["response"],
+            intent=response_data["intent"],
+            confidence=response_data["confidence"],
+            context=response_data["context"],
             platform="website"
         )
 
-        async with httpx.AsyncClient() as client:
-            user_response = await client.post(
-                "http://localhost:3001/api/chat/send",
-                json={
-                    "userId": request.user_id,
-                    "message": request.message,
-                    "sender": "user",
-                    "context": new_context
-                }
-            )
-            if user_response.status_code != 201:
-                logger.error(f"Failed to save user message: {user_response.text}")
+        # Chỉ gửi yêu cầu đến BACKEND_API_URL nếu nó được cấu hình
+        if BACKEND_API_URL:
+            async with httpx.AsyncClient() as client:
+                user_response = await client.post(
+                    f"{BACKEND_API_URL}/api/chat/send",
+                    json={
+                        "userId": request.user_id,
+                        "message": request.message,
+                        "sender": "user",
+                        "context": response_data["context"]
+                    }
+                )
+                if user_response.status_code != 201:
+                    logger.error(f"Failed to save user message: {user_response.text}")
 
-            bot_response = await client.post(
-                "http://localhost:3001/api/chat/send",
-                json={
-                    "userId": request.user_id,
-                    "message": response,
-                    "sender": "bot",
-                    "context": new_context
-                }
-            )
-            if bot_response.status_code != 201:
-                logger.error(f"Failed to save bot message: {bot_response.text}")
+                bot_response = await client.post(
+                    f"{BACKEND_API_URL}/api/chat/send",
+                    json={
+                        "userId": request.user_id,
+                        "message": response_data["response"],
+                        "sender": "bot",
+                        "context": response_data["context"]
+                    }
+                )
+                if bot_response.status_code != 201:
+                    logger.error(f"Failed to save bot message: {bot_response.text}")
 
-        return {
-            "response": response,
-            "intent": intent,
-            "confidence": confidence,
-            "context": new_context
-        }
+        return response_data
+
     except Exception as e:
         logger.error(f"Error in /predict: {e}")
         return JSONResponse(content={"error": "Failed to process message"}, status_code=500)
@@ -151,56 +145,25 @@ async def predict(request: PredictRequest):
 @app.post("/feedback")
 async def feedback(request: FeedbackRequest):
     try:
-        logger.info(f"Feedback received: {request}")
-        db["feedback"].insert_one({
-            "user_input": request.user_input,
-            "bot_response": request.bot_response,
-            "feedback": request.feedback,
-            "timestamp": datetime.now()
-        })
-        return {"status": "Feedback received"}
+        result = feedback_handler.save_feedback(
+            user_input=request.user_input,
+            bot_response=request.bot_response,
+            feedback=request.feedback,
+            user_id=request.user_id
+        )
+        if result["status"] == "success":
+            feedback_handler.process_negative_feedback()
+            return {"status": "Feedback received"}
+        raise HTTPException(status_code=500, detail=result["message"])
     except Exception as e:
         logger.error(f"Error in /feedback: {e}")
         raise HTTPException(status_code=500, detail=f"Error saving feedback: {str(e)}")
 
-@app.get("/intents")
-async def get_intents():
-    try:
-        intents_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "intents.json")
-        book_intents_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "book_intents.json")
-        intents = []
-        if os.path.exists(intents_path):
-            with open(intents_path, "r", encoding="utf-8") as f:
-                intents.extend(json.load(f)["intents"])
-            logger.info(f"Loaded intents from {intents_path}")
-        else:
-            logger.warning(f"intents.json not found at {intents_path}")
-        if os.path.exists(book_intents_path):
-            with open(book_intents_path, "r", encoding="utf-8") as f:
-                intents.extend(json.load(f)["intents"])
-            logger.info(f"Loaded intents from {book_intents_path}")
-        else:
-            logger.warning(f"book_intents.json not found at {book_intents_path}")
-        intent_tags = [{"tag": intent["tag"]} for intent in intents]
-        return {"intents": intent_tags}
-    except Exception as e:
-        logger.error(f"Error loading intents: {e}")
-        raise HTTPException(status_code=500, detail=f"Error loading intents: {str(e)}")
-
 @app.get("/feedbacks")
 async def get_feedbacks():
     try:
-        feedbacks = list(db.feedback.find({}, {"_id": 0, "user_input": 1, "bot_response": 1, "intent": 1, "correct_intent": 1}))
-        formatted_feedbacks = [
-            {
-                "user_input": f["user_input"],
-                "intent": f.get("intent", "unknown"),
-                "response_sai": f.get("bot_response", ""),
-                "correct_intent": f.get("correct_intent", "")
-            } for f in feedbacks
-        ]
-        logger.info(f"Loaded {len(feedbacks)} feedbacks")
-        return {"feedbacks": formatted_feedbacks}
+        feedbacks = feedback_handler.get_feedbacks(limit=100)
+        return {"feedbacks": feedbacks}
     except Exception as e:
         logger.error(f"Error loading feedbacks: {e}")
         raise HTTPException(status_code=500, detail=f"Error loading feedbacks: {str(e)}")
@@ -208,13 +171,13 @@ async def get_feedbacks():
 @app.post("/correct_feedback")
 async def correct_feedback(correction: FeedbackCorrection):
     try:
-        db.feedback.update_one(
-            {"user_input": correction.user_input},
-            {"$set": {"correct_intent": correction.correct_intent}},
-            upsert=True
+        result = feedback_handler.correct_intent(
+            user_input=correction.user_input,
+            correct_intent=correction.correct_intent
         )
-        logger.info(f"Updated feedback for user_input: {correction.user_input}")
-        return {"status": "success"}
+        if result["status"] == "success":
+            return {"status": "success"}
+        raise HTTPException(status_code=500, detail=result["message"])
     except Exception as e:
         logger.error(f"Error saving feedback: {e}")
         raise HTTPException(status_code=500, detail=f"Error saving feedback: {str(e)}")
@@ -223,9 +186,9 @@ async def correct_feedback(correction: FeedbackCorrection):
 async def retrain_model():
     try:
         logger.info("Starting model retraining...")
-        auto_retrain()
+        update_intents()
         logger.info("Model retraining completed.")
-        return {"status": "success", "message": "Đã kiểm tra và huấn luyện lại mô hình nếu cần."}
+        return {"status": "success", "message": "Đã cập nhật intents và huấn luyện lại mô hình."}
     except Exception as e:
         logger.error(f"Retraining failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Retraining failed: {str(e)}")

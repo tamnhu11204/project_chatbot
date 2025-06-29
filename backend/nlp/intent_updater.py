@@ -1,63 +1,65 @@
+import logging
+from pymongo import MongoClient
+from backend.config.settings import MONGO_URI, MONGO_DB, INTENTS_PATH
 import json
 import os
-from backend.config.settings import INTENTS_PATH, BOOK_INTENTS_PATH, MODEL_PATH
-from backend.nlp.train_model import train_and_save_model
 
+# Cấu hình logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def add_pattern_to_intent(intent_tag, new_pattern):
-    def is_valid_sentence(sentence):
-        return len(sentence.strip()) >= 3 and not sentence.isspace()
+def update_intents():
+    """Update intents.json with new patterns from suggestions."""
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client[MONGO_DB]
+        suggestions = db["suggestions"].find()
 
-    intents_files = [
-        (INTENTS_PATH, ["greeting", "goodbye", "open_hour", "accept", "unknown"]),
-        (
-            BOOK_INTENTS_PATH,
-            [
-                "book_price",
-                "find_book",
-                "order_book",
-                "support",
-                "promotion",
-                "order_status",
-            ],
-        ),
-    ]
+        intents = {"intents": []}
+        if os.path.exists(INTENTS_PATH):
+            with open(INTENTS_PATH, "r", encoding="utf-8-sig") as f:
+                intents = json.load(f)
+        else:
+            logger.error(f"Intents file not found at {INTENTS_PATH}")
+            return False
 
-    target_path = INTENTS_PATH
-    for path, tags in intents_files:
-        if intent_tag in tags:
-            target_path = path
-            break
+        for suggestion in suggestions:
+            intent_tag = suggestion.get("intent")
+            pattern = suggestion.get("pattern")
+            if not intent_tag or not pattern:
+                logger.warning(f"Invalid suggestion: {suggestion}")
+                continue
 
-    with open(target_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+            # Find or create intent
+            intent_found = False
+            for intent in intents["intents"]:
+                if intent["tag"] == intent_tag:
+                    if pattern not in intent["patterns"]:
+                        intent["patterns"].append(pattern)
+                        logger.info(f"Added pattern '{pattern}' to intent '{intent_tag}'")
+                    intent_found = True
+                    break
 
-    updated = False
-    for intent in data["intents"]:
-        if intent["tag"] == intent_tag:
-            if is_valid_sentence(new_pattern) and new_pattern not in intent["patterns"]:
-                intent["patterns"].append(new_pattern)
-                updated = True
-            break
-    else:
-        if is_valid_sentence(new_pattern):
-            data["intents"].append(
-                {
+            if not intent_found:
+                intents["intents"].append({
                     "tag": intent_tag,
-                    "patterns": [new_pattern],
-                    "responses": [
-                        "Xin lỗi, mình chưa có phản hồi cụ thể cho yêu cầu này."
-                    ],
-                }
-            )
-            updated = True
+                    "patterns": [pattern],
+                    "responses": [f"Đã thêm intent mới cho {intent_tag}"]
+                })
+                logger.info(f"Created new intent '{intent_tag}' with pattern '{pattern}'")
 
-    if updated:
-        with open(target_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        print(f"✅ Đã thêm mẫu mới vào intent '{intent_tag}': \"{new_pattern}\"")
-        print("⏳ Đang retrain model với pattern mới...")
-        train_and_save_model()  # Sửa dòng này
-        print("✅ Đã retrain model.")
+        # Save updated intents
+        os.makedirs(os.path.dirname(INTENTS_PATH), exist_ok=True)
+        with open(INTENTS_PATH, "w", encoding="utf-8") as f:
+            json.dump(intents, f, ensure_ascii=False, indent=4)
+        logger.info(f"Updated intents saved to {INTENTS_PATH}")
 
-    return updated
+        # Clear suggestions after updating
+        db["suggestions"].delete_many({})
+        logger.info("Cleared suggestions collection")
+        client.close()
+        return True
+    except Exception as e:
+        logger.error(f"Error updating intents: {str(e)}")
+        client.close()
+        return False

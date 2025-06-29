@@ -1,7 +1,7 @@
 {
     "intents": [
         {
-            "tag": "greeting",
+            "tag": "general_greeting",
             "patterns": [
                 "chào",
                 "hi",
@@ -44,7 +44,7 @@
                 "hi shop",
                 "hello shop",
                 "chào nhé",
-                "hi bạn ơi",
+                "hi bạn nha",
                 "xin chào nha",
                 "chào bạn nha",
                 "hiii shop",
@@ -75,27 +75,6 @@
                 "hello bạn nhé",
                 "xin chào nè",
                 "chào shop bạn",
-                "hi bạn nhé",
-                "hế lô bạn ơi",
-                "chào buổi tối nha",
-                "ê shop nè",
-                "alo shop ơi",
-                "hey shop bạn",
-                "chào bạn nha shop",
-                "hi shop bạn",
-                "hello shop nhé",
-                "chào nha bạn ơi",
-                "hiii shop nè",
-                "helo bạn nè",
-                "chào shop bạn nè",
-                "ê nè shop",
-                "alo bạn ơi",
-                "hey bạn shop",
-                "chào bạn shop nè",
-                "hi shop bạn ơi",
-                "hello bạn shop",
-                "xin chào shop nè",
-                "chào shop nha bạn",
                 "hi bạn shop nè",
                 "hế lô shop bạn",
                 "chào buổi sáng nè",
@@ -133,7 +112,7 @@
             ]
         },
         {
-            "tag": "goodbye",
+            "tag": "general_goodbye",
             "patterns": [
                 "Tạm biệt",
                 "Bye",
@@ -168,7 +147,7 @@
             ]
         },
         {
-            "tag": "open_hour",
+            "tag": "general_open_hour",
             "patterns": [
                 "mấy giờ mở cửa",
                 "giờ mở cửa",
@@ -271,7 +250,7 @@
             ]
         },
         {
-            "tag": "accept",
+            "tag": "general_accept",
             "patterns": [
                 "Ok",
                 "Oke",
@@ -315,7 +294,7 @@
             ]
         },
         {
-            "tag": "unknown",
+            "tag": "general_unknown",
             "patterns": [
                 "gì vậy",
                 "huh",
@@ -344,6 +323,153 @@
                 "Bạn có thể nói lại rõ hơn không ạ?",
                 "Mình chưa hiểu rõ câu hỏi của bạn. Bạn có thể diễn đạt lại giúp mình không?",
                 "Bạn có thể cung cấp thêm thông tin không ạ?"
+            ]
+        },
+        {
+            "tag": "book_book_price",
+            "patterns": [
+                "giá sách bao nhiêu",
+                "sách này giá thế nào",
+                "giá sách là bao nhiêu",
+                "bao nhiêu tiền",
+                "sách giá bao nhiêu",
+                "giá cuốn sách này",
+                "sách này bao tiền",
+                "check giá sách giúp mình",
+                "sách banana fish giá bao nhiêu",
+                "giá sách banana fish là bao nhiêu",
+                "mình muốn biết giá sách banana fish",
+                "giá sách banana fish 13",
+                "banana fish 13 giá bao nhiêu"
+            ],
+            "responses": [
+                "Vui lòng cung cấp tên sách để mình kiểm tra giá nhé!",
+                "Bạn muốn hỏi giá sách nào? Nói mình biết nha!",
+                "Sách {book_name} có giá {price} VND. Bạn muốn biết thêm không?"
+            ]
+        },
+        {
+            "tag": "book_find_book",
+            "patterns": [
+                "tìm sách banana fish",
+                "sách banana fish",
+                "banana fish",
+                "tìm banana fish",
+                "có sách banana fish không",
+                "sách banana fish đâu",
+                "banana fish có không",
+                "tìm sách banana fish 13",
+                "banana fish 13 có không",
+                "sách banana fish 13"
+            ],
+            "responses": [
+                "Bạn muốn tìm sách gì? Cung cấp tên hoặc thể loại nhé!",
+                "Hãy cho mình biết tên sách hoặc chủ đề bạn cần!",
+                "Mình tìm được sách {book_list}. Bạn muốn chi tiết sách nào?"
+            ]
+        },
+        {
+            "tag": "book_order_book",
+            "patterns": [
+                "đặt sách",
+                "mua sách",
+                "order sách",
+                "cách đặt sách",
+                "mua sách như thế nào",
+                "mình muốn mua sách",
+                "đặt cuốn sách này",
+                "order sách banana fish",
+                "đặt sách banana fish",
+                "mua sách banana fish 13 giúp mình"
+            ],
+            "responses": [
+                "Bạn muốn đặt sách nào? Mình sẽ hướng dẫn cách đặt nhé!",
+                "Để đặt sách, bạn cung cấp tên sách và thông tin liên hệ nha!",
+                "Bạn muốn đặt sách {book_name}? Mình sẽ chuyển yêu cầu đến admin!"
+            ]
+        },
+        {
+            "tag": "book_support",
+            "patterns": [
+                "hỗ trợ",
+                "cần giúp",
+                "liên hệ admin",
+                "gọi hỗ trợ",
+                "admin đâu",
+                "mình cần hỗ trợ gấp",
+                "shop hỗ trợ thế nào",
+                "có ai giúp mình không"
+            ],
+            "responses": [
+                "Mình sẽ chuyển yêu cầu của bạn đến admin ngay!",
+                "Đã gửi yêu cầu hỗ trợ. Admin sẽ liên hệ sớm!"
+            ]
+        },
+        {
+            "tag": "book_promotion",
+            "patterns": [
+                "khuyến mãi",
+                "có ưu đãi gì",
+                "sách giảm giá không",
+                "promo hôm nay",
+                "có deal nào hot không",
+                "sách sale bao nhiêu",
+                "ưu đãi sách",
+                "có khuyến mãi gì không",
+                "khuyến mãi sách là gì",
+                "giảm giá sách bao nhiêu"
+            ],
+            "responses": [
+                "Hiện tại shop có chương trình giảm giá 20% cho sách văn học. Bạn muốn xem chi tiết không?",
+                "Có khuyến mãi cho sách thiếu nhi nè! Bạn cần mình gửi danh sách không?",
+                "Khuyến mãi hiện tại là 20% cho sách văn học. Bạn muốn biết thêm không?"
+            ]
+        },
+        {
+            "tag": "book_order_status",
+            "patterns": [
+                "đơn hàng của mình đâu",
+                "trạng thái đơn hàng",
+                "check đơn hàng giúp",
+                "sách mình đặt tới đâu rồi",
+                "đơn hàng giao chưa",
+                "mình đặt sách hôm qua",
+                "đơn hàng {order_id} đâu rồi",
+                "trạng thái đơn hàng {order_id}",
+                "check đơn {order_id} giúp mình"
+            ],
+            "responses": [
+                "Vui lòng cung cấp mã đơn hàng để mình kiểm tra trạng thái nhé!",
+                "Bạn cho mình mã đơn hàng để mình check giúp nha!",
+                "Đơn hàng {order_id} đang ở trạng thái {status}. Bạn cần thêm thông tin không?"
+            ]
+        },
+        {
+            "tag": "book_book_details",
+            "patterns": [
+                "cho mình thông tin chi tiết sách banana fish",
+                "sách banana fish có nội dung gì",
+                "mô tả sách banana fish đi",
+                "sách banana fish chi tiết thế nào",
+                "thông tin chi tiết sách banana fish",
+                "sách banana fish có gì đặc biệt",
+                "chi tiết sách banana fish",
+                "sách banana fish chi tiết",
+                "cho mình chi tiết sách banana fish",
+                "cho mình thông tin chi tiết sách banana fish 13",
+                "sách banana fish 13 có nội dung gì",
+                "mô tả sách banana fish 13 đi",
+                "sách banana fish 13 chi tiết thế nào",
+                "thông tin chi tiết sách banana fish 13",
+                "sách banana fish 13 có gì đặc biệt",
+                "chi tiết sách banana fish 13",
+                "sách banana fish 13 chi tiết",
+                "cho mình chi tiết sách banana fish 13"
+            ],
+            "responses": [
+                "Sách {book_name} có tiêu đề: {title}, giá: {price} VND, mô tả: {description}.",
+                "Thông tin chi tiết sách {book_name}: {title}, giá {price} VND, {description}.",
+                "Mình không tìm thấy chi tiết sách {book_name}. Bạn thử lại nhé!"
             ]
         }
     ]

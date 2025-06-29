@@ -8,7 +8,6 @@ chat_logs = db["chat_logs"]
 chat_feedbacks = db["chat_feedbacks"]
 wrong_responses = db["wrong_responses"]
 
-
 def log_conversation(user_input, intent, confidence, response, session_id):
     chat_logs.insert_one(
         {
@@ -20,7 +19,6 @@ def log_conversation(user_input, intent, confidence, response, session_id):
             "timestamp": datetime.now(),
         }
     )
-
 
 def log_feedback(user_input, bot_response, feedback_type):
     feedback_record = {
@@ -41,6 +39,21 @@ def log_feedback(user_input, bot_response, feedback_type):
             }
         )
 
-
 def get_wrong_responses():
     return list(wrong_responses.find())
+
+def save_message(user_id, session_id, message, sender, platform="website", context=None):
+    """Save user and bot messages to MongoDB."""
+    try:
+        db["LiveChatMessage"].insert_one({
+            "sender": sender,
+            "user": user_id,
+            "message": message,
+            "session_id": session_id,
+            "timestamp": datetime.now(),
+            "isHandled": sender == "bot",
+            "context": context or {},
+            "platform": platform
+        })
+    except Exception as e:
+        print(f"Failed to save message: {e}")

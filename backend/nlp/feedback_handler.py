@@ -1,81 +1,85 @@
 from pymongo import MongoClient
-import json
-import os
-from backend.config.settings import MONGO_URI, MONGO_DB, INTENTS_PATH
-from transformers import AutoTokenizer, AutoModel
-import torch
-import numpy as np
+from backend.config.settings import MONGO_URI, MONGO_DB
 from datetime import datetime
+from backend.nlp.utils import is_valid_sentence, suggest_intent, clean_text
+import logging
 
-client = MongoClient(MONGO_URI)
-db = client[MONGO_DB]
+# Cấu hình logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Kết nối MongoDB
+try:
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+    client.admin.command('ping')
+    db = client[MONGO_DB]
+    logger.info("MongoDB connected successfully for FeedbackHandler")
+except Exception as e:
+    logger.error(f"MongoDB connection failed: {e}")
+    raise
+
 chat_logs = db["chat_logs"]
 wrong_responses = db["wrong_responses"]
 suggestions = db["suggestions"]
 
-tokenizer = AutoTokenizer.from_pretrained("vinai/phobert-base")
-model = AutoModel.from_pretrained("vinai/phobert-base")
+class FeedbackHandler:
+    def save_feedback(self, user_input, bot_response, feedback, user_id=None):
+        """Save feedback to wrong_responses if negative."""
+        try:
+            if "negative" in feedback.lower():
+                cleaned_input = clean_text(user_input)
+                if is_valid_sentence(cleaned_input):
+                    suggested_intent = suggest_intent(cleaned_input, threshold=0.6)
+                    wrong_responses.insert_one({
+                        "user_input": user_input,
+                        "cleaned_input": cleaned_input,
+                        "bot_response": bot_response,
+                        "feedback": feedback,
+                        "user_id": user_id,
+                        "suggested_intent": suggested_intent,
+                        "timestamp": datetime.now()
+                    })
+                    logger.info(f"Saved negative feedback for input: {user_input}, Suggested intent: {suggested_intent}")
+            return {"status": "success"}
+        except Exception as e:
+            logger.error(f"Error saving feedback: {e}")
+            return {"status": "error", "message": str(e)}
 
-
-def update_intents_from_feedback():
-    with open(INTENTS_PATH, "r", encoding="utf-8") as f:
-        intents_data = json.load(f)
-    tag_to_intent = {intent["tag"]: intent for intent in intents_data["intents"]}
-    updated = False
-
-    # Từ chat_logs (negative feedback)
-    for log in chat_logs.find({"user_feedback": "negative"}):
-        sentence = log["user"].strip()
-        intent = suggest_intent(sentence, intents_data) or log["intent"]
-        if is_valid_sentence(sentence) and intent in tag_to_intent:
-            if sentence not in tag_to_intent[intent]["patterns"]:
-                tag_to_intent[intent]["patterns"].append(sentence)
-                updated = True
-
-    # Từ wrong_responses
-    for log in wrong_responses.find():
-        sentence = log["user_input"].strip()
-        intent = suggest_intent(sentence, intents_data) or log["intent"]
-        if is_valid_sentence(sentence) and intent in tag_to_intent:
-            if sentence not in tag_to_intent[intent]["patterns"]:
-                tag_to_intent[intent]["patterns"].append(sentence)
-                updated = True
-
-    if updated:
-        with open(INTENTS_PATH, "w", encoding="utf-8") as f:
-            json.dump(intents_data, f, ensure_ascii=False, indent=4)
-        chat_logs.delete_many({"user_feedback": "negative"})
-        wrong_responses.delete_many({})
-        print("✅ Đã cập nhật intents.")
-        from backend.nlp.retrain_manager import auto_retrain
-
-        auto_retrain()
-
-
-def suggest_intent(user_input, intents_data):
-    user_embedding = get_embedding(user_input)
-    best_score = -1
-    best_intent = None
-    for intent in intents_data["intents"]:
-        for pattern in intent["patterns"]:
-            pattern_embedding = get_embedding(pattern)
-            score = cosine_similarity(user_embedding, pattern_embedding)
-            if score > best_score:
-                best_score = score
-                best_intent = intent["tag"]
-    return best_intent if best_score > 0.7 else None
-
-
-def get_embedding(text):
-    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
-    with torch.no_grad():
-        outputs = model(**inputs)
-    return outputs.last_hidden_state[:, 0, :].numpy()
-
-
-def cosine_similarity(a, b):
-    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-
-
-def is_valid_sentence(sentence):
-    return len(sentence.strip()) >= 3 and not sentence.isspace()
+    def process_negative_feedback(self):
+        """Process negative feedback and save to suggestions."""
+        try:
+            negative_logs = list(chat_logs.find(
+                {"user_feedback": "negative"},
+                {"user": 1, "intent": 1}
+            ).limit(100))
+            negative_responses = list(wrong_responses.find(
+                {},
+                {"user_input": 1, "cleaned_input": 1, "suggested_intent": 1}
+            ).limit(100))
+            
+            suggestions_data = []
+            for log in negative_logs:
+                user_text = log.get("user")
+                intent = log.get("intent")
+                if is_valid_sentence(user_text):
+                    cleaned_text = clean_text(user_text)
+                    suggested_intent = suggest_intent(cleaned_text, threshold=0.6) or intent
+                    suggestions_data.append({"tag": suggested_intent, "pattern": user_text})
+            
+            for response in negative_responses:
+                user_input = response.get("user_input")
+                intent = response.get("suggested_intent")
+                if is_valid_sentence(user_input) and intent:
+                    suggestions_data.append({"tag": intent, "pattern": user_input})
+            
+            if suggestions_data:
+                suggestions.insert_one({
+                    "suggestions": suggestions_data,
+                    "timestamp": datetime.now()
+                })
+                logger.info(f"Saved {len(suggestions_data)} negative feedback suggestions")
+                
+                chat_logs.delete_many({"user_feedback": "negative"})
+                wrong_responses.delete_many({})
+        except Exception as e:
+            logger.error(f"Error processing negative feedback: {e}")
