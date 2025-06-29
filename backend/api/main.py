@@ -1,9 +1,10 @@
+import os
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
-from config.settings import FACEBOOK_PAGE_TOKEN, FACEBOOK_VERIFY_TOKEN, BACKEND_API_URL, MONGO_URI, MONGO_DB
-from logic.rules import get_response_from_rules
-from nlp.feedback_handler import FeedbackHandler
-from nlp.intent_updater import update_intents
+from backend.logic.rules import get_response_from_rules
+from backend.nlp.feedback_handler import FeedbackHandler
+from backend.nlp.intent_updater import update_intents
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -13,11 +14,26 @@ from pymongo import MongoClient
 from datetime import datetime
 import logging
 
+# Tải biến môi trường từ .env
+load_dotenv()
+
 app = FastAPI()
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Cấu hình biến môi trường
+FACEBOOK_PAGE_TOKEN = os.getenv("FACEBOOK_PAGE_TOKEN")
+FACEBOOK_VERIFY_TOKEN = os.getenv("FACEBOOK_VERIFY_TOKEN")
+BACKEND_API_URL = os.getenv("BACKEND_API_URL", "")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://tamnhu11204:nhunguyen11204@cluster0.kezkc.mongodb.net/")
+MONGO_DB = os.getenv("MONGO_DB", "chatbot_db")
+
+# Kiểm tra biến môi trường
+if not MONGO_URI or not MONGO_DB:
+    logger.error("MONGO_URI hoặc MONGO_DB không được cấu hình")
+    raise Exception("MONGO_URI hoặc MONGO_DB không được cấu hình")
 
 # Cấu hình CORS
 app.add_middleware(
@@ -109,7 +125,6 @@ async def predict(request: PredictRequest):
             platform="website"
         )
 
-        # Chỉ gửi yêu cầu đến BACKEND_API_URL nếu nó được cấu hình
         if BACKEND_API_URL:
             async with httpx.AsyncClient() as client:
                 user_response = await client.post(
