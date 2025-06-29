@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
-from backend.config.settings import FACEBOOK_PAGE_TOKEN, FACEBOOK_VERIFY_TOKEN, BACKEND_API_URL, MONGO_URI, MONGO_DB
-from backend.logic.rules import get_response_from_rules
-from backend.nlp.feedback_handler import FeedbackHandler
-from backend.nlp.intent_updater import update_intents
+from config.settings import FACEBOOK_PAGE_TOKEN, FACEBOOK_VERIFY_TOKEN, BACKEND_API_URL, MONGO_URI, MONGO_DB
+from logic.rules import get_response_from_rules
+from nlp.feedback_handler import FeedbackHandler
+from nlp.intent_updater import update_intents
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
