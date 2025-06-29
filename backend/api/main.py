@@ -3,9 +3,16 @@ import sys
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
-from backend.logic.rules import get_response_from_rules
-from backend.nlp.feedback_handler import FeedbackHandler
-from backend.nlp.intent_updater import update_intents
+try:
+    from backend.logic.rules import get_response_from_rules
+except ImportError:
+    from logic.rules import get_response_from_rules  # Dùng trên Render
+try:
+    from backend.nlp.feedback_handler import FeedbackHandler
+    from backend.nlp.intent_updater import update_intents
+except ImportError:
+    from nlp.feedback_handler import FeedbackHandler  # Dùng trên Render
+    from nlp.intent_updater import update_intents
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -15,9 +22,9 @@ from pymongo import MongoClient
 from datetime import datetime
 import logging
 
-# Thêm thư mục backend/ vào sys.path để tương thích cả cục bộ và Render
-base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(base_dir)
+# Thêm thư mục gốc vào sys.path
+base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+sys.path.insert(0, base_dir)
 
 # Tải biến môi trường từ .env
 load_dotenv()
