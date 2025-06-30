@@ -1,6 +1,9 @@
 from pymongo import MongoClient
 from datetime import datetime
-from backend.config.settings import MONGO_URI, MONGO_DB
+try:
+    from backend.config.settings import MONGO_URI, MONGO_DB
+except ImportError:
+    from config.settings import MONGO_URI, MONGO_DB
 
 client = MongoClient(MONGO_URI)
 db = client[MONGO_DB]
