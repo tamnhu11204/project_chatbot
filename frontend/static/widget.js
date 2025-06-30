@@ -2,7 +2,7 @@
     console.log('Widget script loaded at', new Date().toLocaleString());
 
     const script = document.currentScript;
-    const iframeUrl = script.getAttribute("data-iframe-url") || "http://localhost:8000/chatbot-ui";
+    const iframeUrl = script.getAttribute("data-iframe-url") || "https://project-chatbot-gzf3.onrender.com/chatbot-ui";
     const primaryColor = script.getAttribute("data-primary-color") || "#4CAF50";
 
     function getCookie(name) {

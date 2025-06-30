@@ -1,5 +1,6 @@
 import os
 import sys
+import uuid
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
@@ -37,28 +38,31 @@ except Exception as e:
     logging.warning(f"Failed to load .env file: {e}. Using default environment variables from settings.py.")
 
 app = FastAPI()
-# ... (phần còn lại giữ nguyên)
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Cấu hình biến môi trường
-FACEBOOK_PAGE_TOKEN = os.getenv("FACEBOOK_PAGE_TOKEN")
-FACEBOOK_VERIFY_TOKEN = os.getenv("FACEBOOK_VERIFY_TOKEN")
-BACKEND_API_URL = os.getenv("BACKEND_API_URL", "")
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://tamnhu11204:nhunguyen11204@cluster0.kezkc.mongodb.net/")
-MONGO_DB = os.getenv("MONGO_DB", "chatbot_db")
+FACEBOOK_PAGE_TOKEN = os.getenv("FACEBOOK_PAGE_TOKEN", FACEBOOK_PAGE_TOKEN)
+FACEBOOK_VERIFY_TOKEN = os.getenv("FACEBOOK_VERIFY_TOKEN", FACEBOOK_VERIFY_TOKEN)
+BACKEND_API_URL = os.getenv("BACKEND_API_URL", BACKEND_API_URL)
+MONGO_URI = os.getenv("MONGO_URI", MONGO_URI)
+MONGO_DB = os.getenv("MONGO_DB", MONGO_DB)
 
 # Kiểm tra biến môi trường
-if not MONGO_URI or not MONGO_DB:
-    logger.error("MONGO_URI hoặc MONGO_DB không được cấu hình")
-    raise Exception("MONGO_URI hoặc MONGO_DB không được cấu hình")
+if not all([MONGO_URI, MONGO_DB, FACEBOOK_PAGE_TOKEN, FACEBOOK_VERIFY_TOKEN]):
+    logger.error("Một hoặc nhiều biến môi trường không được cấu hình: MONGO_URI, MONGO_DB, FACEBOOK_PAGE_TOKEN, FACEBOOK_VERIFY_TOKEN")
+    raise Exception("Cần cấu hình đầy đủ các biến môi trường")
 
 # Cấu hình CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://localhost:3001", "http://localhost:3000", "https://bookish-web-frontend.onrender.com", "https://chatbot-frontend.onrender.com"],
+    allow_origins=[
+        os.getenv("API_BASE_URL", "https://chatbot-project-abc123.onrender.com"),  # URL triển khai chatbot
+        "https://bookish-web-be.onrender.com",  # Backend Bookish Web
+        "http://localhost:8000",  # Để debug cục bộ
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -70,7 +74,7 @@ templates = Jinja2Templates(directory="frontend/templates")
 
 # MongoDB connection
 try:
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
     client.admin.command('ping')
     logger.info("MongoDB connected successfully")
 except Exception as e:
@@ -227,3 +231,54 @@ async def retrain_model():
     except Exception as e:
         logger.error(f"Retraining failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Retraining failed: {str(e)}")
+
+@app.get("/webhook")
+async def verify_webhook(request: Request):
+    """Verify webhook for Facebook Messenger."""
+    try:
+        verify_token = request.query_params.get("hub.verify_token")
+        if verify_token == FACEBOOK_VERIFY_TOKEN:
+            return request.query_params.get("hub.challenge")
+        raise HTTPException(status_code=403, detail="Invalid verify token")
+    except Exception as e:
+        logger.error(f"Webhook verification failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Webhook verification failed: {str(e)}")
+
+@app.post("/webhook")
+async def handle_webhook(request: Request):
+    """Handle incoming messages from Facebook Messenger."""
+    try:
+        body = await request.json()
+        if body.get("object") == "page":
+            for entry in body.get("entry", []):
+                for messaging_event in entry.get("messaging", []):
+                    sender_id = messaging_event["sender"]["id"]
+                    message = messaging_event["message"]["text"]
+                    session_id = str(uuid.uuid4())[:8]
+                    response_data = await get_response_from_rules(
+                        user_input=message,
+                        session_id=session_id,
+                        user_id=sender_id,
+                        context={}
+                    )
+                    async with httpx.AsyncClient() as client:
+                        await client.post(
+                            f"https://graph.facebook.com/v13.0/me/messages?access_token={FACEBOOK_PAGE_TOKEN}",
+                            json={
+                                "recipient": {"id": sender_id},
+                                "message": {"text": response_data["response"]}
+                            }
+                        )
+                    save_message(
+                        user_id=sender_id,
+                        message=message,
+                        response=response_data["response"],
+                        intent=response_data["intent"],
+                        confidence=response_data["confidence"],
+                        context=response_data["context"],
+                        platform="messenger"
+                    )
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        return JSONResponse(content={"status": "error"}, status_code=500)

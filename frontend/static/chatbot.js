@@ -1,5 +1,5 @@
-const API_BASE_URL = "http://localhost:8000";
-const BE_API_URL = "http://localhost:3001";
+const API_BASE_URL = process.env.API_BASE_URL || "https://your-chatbot.onrender.com";
+const BE_API_URL = process.env.BE_API_URL || "https://project-chatbot-gzf3.onrender.com";
 let userId = getCookie('user_id') || localStorage.getItem('user_id') || `guest_${uuidv4()}`;
 let accessToken = getCookie('access_token') || localStorage.getItem('access_token') || '';
 let sessionId = uuidv4().slice(0, 8);
