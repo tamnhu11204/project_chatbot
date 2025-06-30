@@ -1,8 +1,8 @@
-const API_BASE_URL = window.location.origin; // Dùng URL động (https://project-chatbot-p7fn.onrender.com hoặc http://localhost:8000)
-const BE_API_URL = "https://bookish-web-be.onrender.com"; // Backend Bookish Web
-let userId = getCookie('user_id') || localStorage.getItem('user_id') || `guest_${uuidv4().replace(/-/g, '').slice(0, 8)}`;
+const API_BASE_URL = "https://project-chatbot-p7fn.onrender.com";
+const BE_API_URL = "https://bookish-web-be.onrender.com";
+let userId = getCookie('user_id') || localStorage.getItem('user_id') || `guest_${uuidv4()}`;
 let accessToken = getCookie('access_token') || localStorage.getItem('access_token') || '';
-let sessionId = uuidv4().replace(/-/g, '').slice(0, 8);
+let sessionId = uuidv4().slice(0, 8);
 let isGuest = !accessToken;
 let isAdminChat = false;
 let isSupportRequested = false;
@@ -13,21 +13,41 @@ localStorage.setItem('user_id', userId);
 localStorage.setItem('access_token', accessToken);
 console.log('Initial userId:', userId, 'SessionId:', sessionId, 'Is guest:', isGuest);
 
-// Vô hiệu hóa Socket.IO vì FastAPI không hỗ trợ
-// const socket = io(BE_API_URL, { withCredentials: true });
-// socket.on('supportRequest', ...);
-// socket.on('newMessage', ...);
-
-function getCookie(name) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
-    return null;
-}
-
-function formatTime(date) {
-    return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-}
+// Comment socket.io vì server bookish-web-be có thể không hỗ trợ WebSocket
+const socket = io(BE_API_URL, { withCredentials: true });
+socket.on('supportRequest', (data) => {
+    if (data.userId === userId && !isAdminChat) {
+        const chatBox = document.getElementById('chat-box');
+        const messageKey = `bot:Admin đang hỗ trợ bạn!:${data.timestamp}`;
+        if (!displayedMessages.has(messageKey)) {
+            chatBox.innerHTML += `<div class="bot-message">Admin đang hỗ trợ bạn!</div>`;
+            displayedMessages.add(messageKey);
+            isAdminChat = true;
+            isSupportRequested = true;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    }
+});
+socket.on('newMessage', (data) => {
+    if (data.userId === userId) {
+        const messageKey = `${data.sender}:${data.message}:${data.timestamp}`;
+        if (!displayedMessages.has(messageKey)) {
+            const chatBox = document.getElementById('chat-box');
+            const div = document.createElement('div');
+            div.className = data.sender === 'user' ? 'user-message' : 'bot-message';
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'message-time';
+            timeSpan.textContent = formatTime(new Date(data.timestamp));
+            const contentSpan = document.createElement('span');
+            contentSpan.textContent = data.sender === 'admin' ? `Admin: ${data.message}` : `Bot: ${data.message}`;
+            div.appendChild(contentSpan);
+            div.appendChild(timeSpan);
+            chatBox.appendChild(div);
+            displayedMessages.add(messageKey);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    }
+});
 
 window.addEventListener('message', (event) => {
     if (event.data.type === 'USER_DATA') {
@@ -45,7 +65,7 @@ window.addEventListener('message', (event) => {
     } else if (event.data.type === 'LOGOUT') {
         localStorage.removeItem('user_id');
         localStorage.removeItem('access_token');
-        userId = `guest_${uuidv4().replace(/-/g, '').slice(0, 8)}`;
+        userId = `guest_${uuidv4()}`;
         isGuest = true;
         localStorage.setItem('user_id', userId);
         displayedMessages.clear();
@@ -299,16 +319,6 @@ style.innerHTML = `
     }
     .book-buttons button:hover {
         background-color: #0056b3;
-    }
-    .feedback-container {
-        margin-top: 5px;
-    }
-    .feedback-icon {
-        cursor: pointer;
-        margin-right: 10px;
-    }
-    .feedback-icon:hover {
-        opacity: 0.7;
     }
 `;
 document.head.appendChild(style);

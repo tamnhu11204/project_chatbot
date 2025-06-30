@@ -43,7 +43,7 @@
         iframe.setAttribute("sandbox", "allow-scripts allow-same-origin");
 
         const toggleBtn = document.createElement("div");
-        toggleBtn.innerHTML = `<img src="/static/asset/logo.png?v=${Date.now()}" alt="Chatbot Logo" class="toggle-logo" onerror="this.src='/static/asset/fallback.png'; this.onerror=null;">`;
+        toggleBtn.innerHTML = `<img src="https://project-chatbot-p7fn.onrender.com/static/asset/logo.png?v=${Date.now()}" alt="Chatbot Logo" class="toggle-logo" onerror="this.src='https://project-chatbot-p7fn.onrender.com/static/asset/fallback.png'; this.onerror=null;">`;
         toggleBtn.style.position = "fixed";
         toggleBtn.style.bottom = "20px";
         toggleBtn.style.right = "20px";

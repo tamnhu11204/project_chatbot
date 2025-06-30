@@ -26,6 +26,7 @@ import httpx
 from pymongo import MongoClient
 from datetime import datetime
 import logging
+from starlette.responses import PlainTextResponse
 
 # Thêm thư mục gốc vào sys.path
 base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -253,19 +254,15 @@ async def retrain_model():
 
 @app.get("/webhook")
 async def verify_webhook(request: Request):
-    """Verify webhook for Facebook Messenger."""
-    try:
-        verify_token = request.query_params.get("hub.verify_token")
-        challenge = request.query_params.get("hub.challenge")
-        logger.info(f"Verifying webhook with token: {verify_token}, challenge: {challenge}")
-        if verify_token == FACEBOOK_VERIFY_TOKEN:
-            logger.info("Webhook verified successfully")
-            return challenge
-        logger.error("Webhook verification failed: Invalid token")
-        raise HTTPException(status_code=403, detail="Invalid verify token")
-    except Exception as e:
-        logger.error(f"Webhook verification failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Webhook verification failed: {str(e)}")
+    verify_token = "my_chatbot_token"
+    mode = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
+    if mode == "subscribe" and token == verify_token:
+        print(f"Verifying webhook with token: {token}, challenge: {challenge}")
+        print("Webhook verified successfully")
+        return PlainTextResponse(challenge)
+    return {"error": "Invalid verification token"}, 403
 
 @app.post("/webhook")
 async def handle_webhook(request: Request):

@@ -42,14 +42,19 @@
     </form>
 
     <script>
-        const API_BASE_URL = window.CHATBOT_API_URL || "http://localhost:8000";
+        const API_BASE_URL = window.location.origin;
 
         async function loadIntents() {
-            const res = await fetch(`${API_BASE_URL}/intents`);
-            const intents = await res.json();
-            document.querySelectorAll("select").forEach(select => {
-                select.innerHTML = intents.map(intent => `<option value="${intent.tag}">${intent.tag}</option>`).join("");
-            });
+            try {
+                const res = await fetch(`${API_BASE_URL}/intents`);
+                if (!res.ok) throw new Error(`Failed to load intents: ${res.status}`);
+                const intents = await res.json();
+                document.querySelectorAll("select").forEach(select => {
+                    select.innerHTML = intents.map(intent => `<option value="${intent.tag}">${intent.tag}</option>`).join("");
+                });
+            } catch (error) {
+                console.error("Error loading intents:", error);
+            }
         }
 
         function filterFeedback() {
@@ -62,21 +67,25 @@
         }
 
         async function submitCorrection(userInput, selectId) {
-            const intent = document.getElementById(selectId).value;
-            const res = await fetch(`${API_BASE_URL}/correct_feedback`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    user_input: userInput,
-                    correct_intent: intent
-                })
-            });
-
-            const result = await res.json();
-            if (result.status === "success") {
-                alert("✅ Đã lưu phản hồi.");
-                location.reload();
-            } else {
+            try {
+                const intent = document.getElementById(selectId).value;
+                const res = await fetch(`${API_BASE_URL}/correct_feedback`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        user_input: userInput,
+                        correct_intent: intent
+                    })
+                });
+                const result = await res.json();
+                if (result.status === "success") {
+                    alert("✅ Đã lưu phản hồi.");
+                    location.reload();
+                } else {
+                    throw new Error("Failed to save correction");
+                }
+            } catch (error) {
+                console.error("Error submitting correction:", error);
                 alert("❌ Có lỗi khi lưu.");
             }
         }
