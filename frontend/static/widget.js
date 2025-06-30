@@ -2,7 +2,7 @@
     console.log('Widget script loaded at', new Date().toLocaleString());
 
     const script = document.currentScript;
-    const iframeUrl = script.getAttribute("data-iframe-url") || "https://project-chatbot-gzf3.onrender.com/chatbot-ui";
+    const iframeUrl = script.getAttribute("data-iframe-url") || "https://project-chatbot-p7fn.onrender.com/chatbot-ui";
     const primaryColor = script.getAttribute("data-primary-color") || "#4CAF50";
 
     function getCookie(name) {
@@ -31,7 +31,7 @@
         const iframe = document.createElement("iframe");
         iframe.src = iframeUrl + "?v=" + Date.now();
         iframe.style.position = "fixed";
-        iframe.style.bottom = "80px"; // Giữ iframe ở trên cùng
+        iframe.style.bottom = "80px";
         iframe.style.right = "20px";
         iframe.style.width = "350px";
         iframe.style.height = "500px";
@@ -43,9 +43,9 @@
         iframe.setAttribute("sandbox", "allow-scripts allow-same-origin");
 
         const toggleBtn = document.createElement("div");
-        toggleBtn.innerHTML = `<img src="http://localhost:8000/static/asset/logo.png?v=${Date.now()}" alt="hello Logo" class="toggle-logo" onerror="this.src='https://via.placeholder.com/50'; this.onerror=null;">`;
+        toggleBtn.innerHTML = `<img src="/static/asset/logo.png?v=${Date.now()}" alt="Chatbot Logo" class="toggle-logo" onerror="this.src='/static/asset/fallback.png'; this.onerror=null;">`;
         toggleBtn.style.position = "fixed";
-        toggleBtn.style.bottom = "20px"; // Giữ nút logo ở dưới cùng
+        toggleBtn.style.bottom = "20px";
         toggleBtn.style.right = "20px";
         toggleBtn.style.width = "50px";
         toggleBtn.style.height = "50px";
@@ -57,10 +57,9 @@
         toggleBtn.style.justifyContent = "center";
         toggleBtn.style.cursor = "pointer";
         toggleBtn.style.zIndex = "9999";
-        toggleBtn.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.3)"; // Thêm bóng để nổi bật
-        toggleBtn.style.border = "2px solid rgba(255, 255, 255, 0.2)"; // Thêm viền nhẹ
+        toggleBtn.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.3)";
+        toggleBtn.style.border = "2px solid rgba(255, 255, 255, 0.2)";
 
-        // Thêm CSS cho toggle-logo và hiệu ứng hover
         const style = document.createElement("style");
         style.innerHTML = `
             .toggle-logo {
@@ -70,16 +69,14 @@
                 object-position: center;
             }
             .toggle-btn:hover {
-                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4); /* Hiệu ứng bóng khi hover */
-                background: ${primaryColor.replace('0.5', '0.7')}; /* Tăng độ đậm màu nền */
+                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+                background: ${primaryColor.replace('0.5', '0.7')};
             }
         `;
         document.head.appendChild(style);
 
-        // Gán class cho toggleBtn để áp dụng CSS hover
         toggleBtn.className = "toggle-btn";
 
-        // Sự kiện click cho toggleBtn
         toggleBtn.onclick = () => {
             iframe.style.display = iframe.style.display === "none" ? "block" : "none";
         };

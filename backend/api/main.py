@@ -59,9 +59,9 @@ if not all([MONGO_URI, MONGO_DB, FACEBOOK_PAGE_TOKEN, FACEBOOK_VERIFY_TOKEN]):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        os.getenv("API_BASE_URL", "https://chatbot-project-abc123.onrender.com"),  # URL triển khai chatbot
-        "https://bookish-web-be.onrender.com",  # Backend Bookish Web
-        "http://localhost:8000",  # Để debug cục bộ
+        os.getenv("API_BASE_URL", "https://project-chatbot-p7fn.onrender.com"),
+        "https://bookish-web-be.onrender.com",
+        "http://localhost:8000"  # Để debug cục bộ
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -136,6 +136,10 @@ def save_message(user_id, message, response, intent, confidence, context=None, p
         })
     except Exception as e:
         logger.error(f"Failed to save message: {e}")
+
+@app.get("/")
+async def health_check():
+    return {"status": "OK", "message": "Server is running"}
 
 @app.get("/chatbot-ui", response_class=HTMLResponse)
 async def get_chatbot_ui(request: Request):
@@ -252,8 +256,12 @@ async def verify_webhook(request: Request):
     """Verify webhook for Facebook Messenger."""
     try:
         verify_token = request.query_params.get("hub.verify_token")
+        challenge = request.query_params.get("hub.challenge")
+        logger.info(f"Verifying webhook with token: {verify_token}, challenge: {challenge}")
         if verify_token == FACEBOOK_VERIFY_TOKEN:
-            return request.query_params.get("hub.challenge")
+            logger.info("Webhook verified successfully")
+            return challenge
+        logger.error("Webhook verification failed: Invalid token")
         raise HTTPException(status_code=403, detail="Invalid verify token")
     except Exception as e:
         logger.error(f"Webhook verification failed: {e}")
@@ -264,6 +272,7 @@ async def handle_webhook(request: Request):
     """Handle incoming messages from Facebook Messenger."""
     try:
         body = await request.json()
+        logger.info(f"Received webhook payload: {body}")
         if body.get("object") == "page":
             for entry in body.get("entry", []):
                 for messaging_event in entry.get("messaging", []):
@@ -277,13 +286,15 @@ async def handle_webhook(request: Request):
                         context={}
                     )
                     async with httpx.AsyncClient() as client:
-                        await client.post(
+                        response = await client.post(
                             f"https://graph.facebook.com/v13.0/me/messages?access_token={FACEBOOK_PAGE_TOKEN}",
                             json={
                                 "recipient": {"id": sender_id},
                                 "message": {"text": response_data["response"]}
                             }
                         )
+                        if response.status_code != 200:
+                            logger.error(f"Failed to send message to Messenger: {response.text}")
                     save_message(
                         user_id=sender_id,
                         message=message,
