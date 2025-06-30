@@ -3,7 +3,10 @@ import json
 import os
 import logging
 from transformers import AutoTokenizer
-from backend.config.settings import INTENTS_PATH
+try:
+    from backend.config.settings import  INTENTS_PATH
+except ImportError:
+    from config.settings import  INTENTS_PATH
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO)

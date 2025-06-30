@@ -7,8 +7,15 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from torch.optim.lr_scheduler import LambdaLR
 import joblib
-from backend.nlp.intent_model import IntentModel
-from backend.config.settings import INTENTS_PATH, LABEL_ENCODER_PATH, MODEL_PATH
+try:
+    from backend.nlp.intent_model import IntentModel
+except ImportError:
+    from nlp.intent_model import IntentModel
+try:
+    from backend.config.settings import INTENTS_PATH, LABEL_ENCODER_PATH, MODEL_PATH
+except ImportError:
+    from config.settings import INTENTS_PATH, LABEL_ENCODER_PATH, MODEL_PATH
+
 import logging
 
 # Cấu hình logging

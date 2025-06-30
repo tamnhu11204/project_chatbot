@@ -1,10 +1,17 @@
 from pymongo import MongoClient
 import json
 import os
-from backend.config.settings import MONGO_URI, MONGO_DB, INTENTS_PATH
+try:
+    from backend.config.settings import MONGO_URI, MONGO_DB, INTENTS_PATH
+except ImportError:
+    from config.settings import MONGO_URI, MONGO_DB, INTENTS_PATH
+try:
+    from backend.nlp.utils import is_valid_sentence, clean_text, suggest_intent
+except ImportError:
+    from nlp.utils import is_valid_sentence, clean_text, suggest_intent
 from datetime import datetime
 import nlpaug.augmenter.word as naw
-from backend.nlp.utils import is_valid_sentence, clean_text, suggest_intent
+
 import logging
 
 # Cấu hình logging

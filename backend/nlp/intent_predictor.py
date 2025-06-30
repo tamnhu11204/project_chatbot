@@ -2,9 +2,20 @@ import torch
 import joblib
 import logging
 from transformers import AutoTokenizer
-from backend.nlp.intent_model import IntentModel
-from backend.nlp.utils import clean_text, suggest_intent
-from backend.config.settings import MODEL_PATH, LABEL_ENCODER_PATH
+
+try:
+    from backend.config.settings import MODEL_PATH, LABEL_ENCODER_PATH
+except ImportError:
+    from config.settings import MODEL_PATH, LABEL_ENCODER_PATH
+try:
+    from backend.nlp.utils import  clean_text, suggest_intent
+except ImportError:
+    from nlp.utils import  clean_text, suggest_intent
+try:
+    from backend.nlp.intent_model import IntentModel
+except ImportError:
+    from nlp.intent_model import IntentModel
+
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO)

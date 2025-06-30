@@ -1,6 +1,11 @@
 import json
 import os
-from backend.config.settings import INTENTS_PATH
+import json
+import os
+try:
+    from backend.config.settings import INTENTS_PATH
+except ImportError:
+    from config.settings import INTENTS_PATH
 
 
 def merge_training_data(augmented_data_path):

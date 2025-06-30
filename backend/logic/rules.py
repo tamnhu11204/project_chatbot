@@ -4,10 +4,16 @@ import os
 import logging
 import aiohttp
 from datetime import datetime
-from backend.config.settings import INTENTS_PATH, BACKEND_API_URL
-from backend.nlp.utils import clean_text
+from datetime import datetime
+try:
+    from backend.config.settings import INTENTS_PATH, BACKEND_API_URL, MONGO_URI, MONGO_DB
+except ImportError:
+    from config.settings import INTENTS_PATH, BACKEND_API_URL, MONGO_URI, MONGO_DB
+try: 
+    from backend.nlp.utils import clean_text
+except ImportError:
+    from nlp.utils import clean_text
 from pymongo import MongoClient
-from backend.config.settings import MONGO_URI, MONGO_DB
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO)

@@ -1,6 +1,9 @@
 import logging
 from pymongo import MongoClient
-from backend.config.settings import MONGO_URI, MONGO_DB, INTENTS_PATH
+try:
+    from backend.config.settings import MONGO_URI, MONGO_DB, INTENTS_PATH
+except ImportError:
+    from config.settings import MONGO_URI, MONGO_DB, INTENTS_PATH
 import json
 import os
 

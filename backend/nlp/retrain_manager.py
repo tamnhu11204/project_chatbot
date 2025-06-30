@@ -1,8 +1,15 @@
 from pymongo import MongoClient
 import json
 import os
-from backend.config.settings import MONGO_URI, MONGO_DB, INTENTS_PATH
-from backend.nlp.train_model import train_intent_model
+try:
+    from backend.config.settings import MONGO_URI, MONGO_DB, INTENTS_PATH
+except ImportError:
+    from config.settings import MONGO_URI, MONGO_DB, INTENTS_PATH
+try:
+    from backend.nlp.train_model import train_intent_model
+except ImportError:
+    from nlp.train_model import train_intent_model
+
 from datetime import datetime
 
 client = MongoClient(MONGO_URI)
