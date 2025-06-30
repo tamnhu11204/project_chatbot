@@ -31,17 +31,17 @@ import logging
 base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, base_dir)
 
-# Tải biến môi trường từ .env
-try:
-    load_dotenv()
-except Exception as e:
-    logging.warning(f"Failed to load .env file: {e}. Using default environment variables from settings.py.")
-
-app = FastAPI()
-
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Tải biến môi trường từ .env (chỉ để debug cục bộ)
+try:
+    load_dotenv()
+except Exception as e:
+    logger.warning(f"Failed to load .env file: {e}. Using environment variables from Render or settings.py.")
+
+app = FastAPI()
 
 # Cấu hình biến môi trường
 FACEBOOK_PAGE_TOKEN = os.getenv("FACEBOOK_PAGE_TOKEN", FACEBOOK_PAGE_TOKEN)
@@ -69,8 +69,20 @@ app.add_middleware(
 )
 
 # Mount static và templates
-app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
-templates = Jinja2Templates(directory="frontend/templates")
+static_dir = os.path.join(base_dir, "frontend/static")
+templates_dir = os.path.join(base_dir, "frontend/templates")
+logger.info(f"Checking static directory: {static_dir}")
+logger.info(f"Checking templates directory: {templates_dir}")
+
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+else:
+    logger.warning(f"Static directory '{static_dir}' not found. Skipping mount.")
+
+if os.path.exists(templates_dir):
+    templates = Jinja2Templates(directory=templates_dir)
+else:
+    logger.warning(f"Templates directory '{templates_dir}' not found. Chatbot UI may not work.")
 
 # MongoDB connection
 try:
@@ -127,6 +139,9 @@ def save_message(user_id, message, response, intent, confidence, context=None, p
 
 @app.get("/chatbot-ui", response_class=HTMLResponse)
 async def get_chatbot_ui(request: Request):
+    if not os.path.exists(templates_dir):
+        logger.error("Templates directory missing, cannot serve chatbot UI")
+        return JSONResponse(content={"error": "Chatbot UI unavailable"}, status_code=500)
     return templates.TemplateResponse("index.html", {"request": request})
 
 @app.post("/predict")
