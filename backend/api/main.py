@@ -6,13 +6,17 @@ from pydantic import BaseModel
 try:
     from backend.logic.rules import get_response_from_rules
 except ImportError:
-    from logic.rules import get_response_from_rules  # Dùng trên Render
+    from logic.rules import get_response_from_rules
 try:
     from backend.nlp.feedback_handler import FeedbackHandler
     from backend.nlp.intent_updater import update_intents
 except ImportError:
-    from nlp.feedback_handler import FeedbackHandler  # Dùng trên Render
+    from nlp.feedback_handler import FeedbackHandler
     from nlp.intent_updater import update_intents
+try:
+    from backend.config.settings import MONGO_URI, MONGO_DB, FACEBOOK_PAGE_TOKEN, FACEBOOK_VERIFY_TOKEN, BACKEND_API_URL
+except ImportError:
+    from config.settings import MONGO_URI, MONGO_DB, FACEBOOK_PAGE_TOKEN, FACEBOOK_VERIFY_TOKEN, BACKEND_API_URL
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -27,9 +31,13 @@ base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, base_dir)
 
 # Tải biến môi trường từ .env
-load_dotenv()
+try:
+    load_dotenv()
+except Exception as e:
+    logging.warning(f"Failed to load .env file: {e}. Using default environment variables from settings.py.")
 
 app = FastAPI()
+# ... (phần còn lại giữ nguyên)
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO)
