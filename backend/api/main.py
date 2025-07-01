@@ -1,23 +1,9 @@
-import json
 import os
 import sys
-from typing import Optional
 import uuid
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
-from pymongo import MongoClient
-from datetime import datetime
-import logging
-import aiohttp
-try:
-    from backend.config.settings import MONGO_URI, MONGO_DB, FACEBOOK_PAGE_TOKEN, FACEBOOK_VERIFY_TOKEN, BACKEND_API_URL, INTENTS_PATH
-except ImportError:
-    from config.settings import MONGO_URI, MONGO_DB, FACEBOOK_PAGE_TOKEN, FACEBOOK_VERIFY_TOKEN, BACKEND_API_URL, INTENTS_PATH
 try:
     from backend.logic.rules import get_response_from_rules
 except ImportError:
@@ -28,6 +14,19 @@ try:
 except ImportError:
     from nlp.feedback_handler import FeedbackHandler
     from nlp.intent_updater import update_intents
+try:
+    from backend.config.settings import MONGO_URI, MONGO_DB, FACEBOOK_PAGE_TOKEN, FACEBOOK_VERIFY_TOKEN, BACKEND_API_URL
+except ImportError:
+    from config.settings import MONGO_URI, MONGO_DB, FACEBOOK_PAGE_TOKEN, FACEBOOK_VERIFY_TOKEN, BACKEND_API_URL
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, JSONResponse
+import httpx
+from pymongo import MongoClient
+from datetime import datetime
+import logging
+from starlette.responses import PlainTextResponse
 
 # Thêm thư mục gốc vào sys.path
 base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -81,12 +80,12 @@ logger.info(f"Checking templates directory: {templates_dir}, exists: {os.path.ex
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 else:
-    logger.error(f"Static directory '{static_dir}' not found. Static files will not be served.")
+    logger.warning(f"Static directory '{static_dir}' not found. Skipping mount.")
 
 if os.path.exists(templates_dir):
     templates = Jinja2Templates(directory=templates_dir)
 else:
-    logger.error(f"Templates directory '{templates_dir}' not found. Chatbot UI may not work.")
+    logger.warning(f"Templates directory '{templates_dir}' not found. Chatbot UI may not work.")
 
 # MongoDB connection
 def get_mongo_client():
@@ -118,25 +117,12 @@ class FeedbackCorrection(BaseModel):
     user_input: str
     correct_intent: str
 
-class SupportRequest(BaseModel):
-    userId: str
-    message: str
-    context: dict = {}
-    platform: str = "website"
-
-class ChatMessage(BaseModel):
-    sender: str
-    userId: str
-    message: str
-    timestamp: Optional[str] = None
-
 def save_message(user_id, message, response, intent, confidence, context=None, platform="website"):
     """Save user and bot messages to MongoDB."""
-    client = None
     try:
         client = get_mongo_client()
         db = client[MONGO_DB]
-        db["chat_logs"].insert_one({
+        db["LiveChatMessage"].insert_one({
             "sender": "user",
             "user": user_id,
             "message": message,
@@ -145,7 +131,7 @@ def save_message(user_id, message, response, intent, confidence, context=None, p
             "context": context or {},
             "platform": platform
         })
-        db["chat_logs"].insert_one({
+        db["LiveChatMessage"].insert_one({
             "sender": "bot",
             "user": user_id,
             "message": response,
@@ -162,7 +148,6 @@ def save_message(user_id, message, response, intent, confidence, context=None, p
 
 @app.get("/")
 async def health_check():
-    logger.info("Health check requested")
     return {"status": "OK", "message": "Server is running"}
 
 @app.get("/chatbot-ui", response_class=HTMLResponse)
@@ -170,7 +155,6 @@ async def get_chatbot_ui(request: Request):
     if not os.path.exists(templates_dir):
         logger.error("Templates directory missing, cannot serve chatbot UI")
         return JSONResponse(content={"error": "Chatbot UI unavailable"}, status_code=500)
-    logger.info("Serving chatbot UI at /chatbot-ui")
     return templates.TemplateResponse("index.html", {"request": request})
 
 @app.post("/predict")
@@ -184,8 +168,7 @@ async def predict(request: PredictRequest):
             user_id=request.user_id,
             context=request.context
         )
-        logger.info(f"Response: {response_data}")
-
+        
         save_message(
             user_id=request.user_id,
             message=request.message,
@@ -195,6 +178,32 @@ async def predict(request: PredictRequest):
             context=response_data["context"],
             platform="website"
         )
+
+        if BACKEND_API_URL:
+            async with httpx.AsyncClient() as client:
+                user_response = await client.post(
+                    f"{BACKEND_API_URL}/api/chat/send",
+                    json={
+                        "userId": request.user_id,
+                        "message": request.message,
+                        "sender": "user",
+                        "context": response_data["context"]
+                    }
+                )
+                if user_response.status_code != 201:
+                    logger.error(f"Failed to save user message: {user_response.text}")
+
+                bot_response = await client.post(
+                    f"{BACKEND_API_URL}/api/chat/send",
+                    json={
+                        "userId": request.user_id,
+                        "message": response_data["response"],
+                        "sender": "bot",
+                        "context": response_data["context"]
+                    }
+                )
+                if bot_response.status_code != 201:
+                    logger.error(f"Failed to save bot message: {bot_response.text}")
 
         return response_data
     except Exception as e:
@@ -215,21 +224,19 @@ async def feedback(request: FeedbackRequest):
         )
         if result["status"] == "success":
             feedback_handler.process_negative_feedback()
-            logger.info(f"Feedback saved: {request}")
             return {"status": "Feedback received"}
         raise HTTPException(status_code=500, detail=result["message"])
     except Exception as e:
-        logger.error(f"Error in /feedback: {str(e)}")
+        logger.error(f"Error in /feedback: {e}")
         raise HTTPException(status_code=500, detail=f"Error saving feedback: {str(e)}")
 
 @app.get("/feedbacks")
 async def get_feedbacks():
     try:
         feedbacks = feedback_handler.get_feedbacks(limit=100)
-        logger.info(f"Retrieved {len(feedbacks)} feedbacks")
         return {"feedbacks": feedbacks}
     except Exception as e:
-        logger.error(f"Error loading feedbacks: {str(e)}")
+        logger.error(f"Error loading feedbacks: {e}")
         raise HTTPException(status_code=500, detail=f"Error loading feedbacks: {str(e)}")
 
 @app.post("/correct_feedback")
@@ -240,11 +247,10 @@ async def correct_feedback(correction: FeedbackCorrection):
             correct_intent=correction.correct_intent
         )
         if result["status"] == "success":
-            logger.info(f"Corrected feedback: {correction.user_input} -> {correction.correct_intent}")
             return {"status": "success"}
         raise HTTPException(status_code=500, detail=result["message"])
     except Exception as e:
-        logger.error(f"Error saving feedback: {str(e)}")
+        logger.error(f"Error saving feedback: {e}")
         raise HTTPException(status_code=500, detail=f"Error saving feedback: {str(e)}")
 
 @app.post("/retrain")
@@ -252,8 +258,6 @@ async def retrain_model():
     try:
         logger.info("Starting model retraining...")
         update_intents()
-        from backend.nlp.retrain_manager import auto_retrain
-        auto_retrain()
         logger.info("Model retraining completed.")
         return {"status": "success", "message": "Đã cập nhật intents và huấn luyện lại mô hình."}
     except Exception as e:
@@ -262,52 +266,42 @@ async def retrain_model():
 
 @app.get("/webhook")
 async def verify_webhook(request: Request):
-    try:
-        verify_token = FACEBOOK_VERIFY_TOKEN
-        mode = request.query_params.get("hub.mode")
-        token = request.query_params.get("hub.verify_token")
-        challenge = request.query_params.get("hub.challenge")
-        logger.info(f"Webhook verification: mode={mode}, token={token}, challenge={challenge}")
-        if mode == "subscribe" and token == verify_token:
-            logger.info("Webhook verified successfully")
-            return PlainTextResponse(challenge)
-        return JSONResponse(content={"error": "Invalid verification token"}, status_code=403)
-    except Exception as e:
-        logger.error(f"Error in webhook verification: {str(e)}")
-        return JSONResponse(content={"error": f"Verification failed: {str(e)}"}, status_code=403)
+    verify_token = "my_chatbot_token"
+    mode = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
+    if mode == "subscribe" and token == verify_token:
+        logger.info(f"Verifying webhook with token: {token}, challenge: {challenge}")
+        logger.info("Webhook verified successfully")
+        return PlainTextResponse(challenge)
+    return JSONResponse(content={"error": "Invalid verification token"}, status_code=403)
 
 @app.post("/webhook")
 async def handle_webhook(request: Request):
-    client = None
     try:
         body = await request.json()
         logger.info(f"Received webhook payload: {body}")
         if body.get("object") == "page":
-            client = get_mongo_client()
-            db = client[MONGO_DB]
             for entry in body.get("entry", []):
                 for messaging_event in entry.get("messaging", []):
                     sender_id = messaging_event["sender"]["id"]
                     message = messaging_event["message"]["text"]
-                    if not message:
-                        continue
-                    logger.info(f"Processing message from {sender_id}: {message}")
-                    session_id = f"fb_{sender_id}_{datetime.now().timestamp()}"
+                    session_id = str(uuid.uuid4())[:8]
                     response_data = await get_response_from_rules(
                         user_input=message,
                         session_id=session_id,
                         user_id=sender_id,
                         context={}
                     )
-                    async with aiohttp.ClientSession() as session:
-                        response = await session.post(
+                    async with httpx.AsyncClient() as client:
+                        response = await client.post(
                             f"https://graph.facebook.com/v13.0/me/messages?access_token={FACEBOOK_PAGE_TOKEN}",
                             json={
                                 "recipient": {"id": sender_id},
                                 "message": {"text": response_data["response"]}
                             }
                         )
-                        if response.status != 200:
+                        if response.status_code != 200:
                             logger.error(f"Failed to send message to Messenger: {response.text}")
                     save_message(
                         user_id=sender_id,
@@ -321,80 +315,4 @@ async def handle_webhook(request: Request):
         return {"status": "ok"}
     except Exception as e:
         logger.error(f"Webhook error: {e}")
-        return JSONResponse(content={"status": "error", "message": str(e)}, status_code=500)
-    finally:
-        if client:
-            client.close()
-
-@app.post("/api/chat/support")
-async def request_support(data: SupportRequest):
-    """Handle support requests and store in MongoDB."""
-    client = None
-    try:
-        client = get_mongo_client()
-        db = client[MONGO_DB]
-        message_entry = {
-            "sender": "user",
-            "user": data.userId,
-            "message": data.message,
-            "timestamp": datetime.now(),
-            "isHandled": False,
-            "context": data.context,
-            "platform": data.platform
-        }
-        db["chat_messages"].insert_one(message_entry)
-        logger.info(f"Support request saved: {message_entry}")
-        return message_entry
-    except Exception as e:
-        logger.error(f"Error in support request: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error saving support request: {str(e)}")
-    finally:
-        if client:
-            client.close()
-
-@app.get("/api/chat/conversation/{userId}")
-async def get_conversation(userId: str):
-    """Retrieve conversation history for a user."""
-    client = None
-    try:
-        client = get_mongo_client()
-        db = client[MONGO_DB]
-        messages = db["chat_messages"].find({"user": userId}).sort("timestamp", 1)
-        messages_list = [
-            {
-                "sender": msg["sender"],
-                "message": msg["message"],
-                "timestamp": msg["timestamp"],
-                "platform": msg["platform"]
-            } for msg in messages
-        ]
-        logger.info(f"Retrieved {len(messages_list)} messages for user {userId}")
-        return {"messages": messages_list}
-    except Exception as e:
-        logger.error(f"Error retrieving conversation for {userId}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error retrieving conversation: {str(e)}")
-    finally:
-        if client:
-            client.close()
-
-def suggest_intent(text: str, threshold: float = 0.6) -> str:
-    """Suggest intent based on text matching."""
-    try:
-        cleaned_text = text.lower().strip()
-        with open(INTENTS_PATH, 'r', encoding='utf-8-sig') as f:
-            intents = json.load(f)
-        best_match = None
-        best_score = 0.0
-        for intent in intents['intents']:
-            for pattern in intent['patterns']:
-                pattern_cleaned = pattern.lower().strip()
-                common_words = set(cleaned_text.split()) & set(pattern_cleaned.split())
-                score = len(common_words) / max(len(pattern_cleaned.split()), 1)
-                if score > best_score and score >= threshold:
-                    best_score = score
-                    best_match = intent['tag']
-        logger.info(f"Suggested intent for '{cleaned_text}': {best_match}, Score: {best_score}")
-        return best_match
-    except Exception as e:
-        logger.error(f"Error in suggest_intent: {e}")
-        return None
+        return JSONResponse(content={"status": "error"}, status_code=500)
