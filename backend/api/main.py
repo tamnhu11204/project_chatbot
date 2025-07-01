@@ -61,7 +61,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         os.getenv("API_BASE_URL", "https://project-chatbot-p7fn.onrender.com"),
-        "https://bookish-web-be.onrender.com",
+        "http://localhost:3001",
         "http://localhost:8000"  # Để debug cục bộ
     ],
     allow_credentials=True,

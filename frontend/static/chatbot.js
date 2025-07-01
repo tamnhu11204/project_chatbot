@@ -1,5 +1,5 @@
 const API_BASE_URL = "https://project-chatbot-p7fn.onrender.com";
-const BE_API_URL = "https://bookish-web-be.onrender.com";
+const BE_API_URL = "http://localhost:3001";
 let userId = getCookie('user_id') || localStorage.getItem('user_id') || `guest_${uuidv4()}`;
 let accessToken = getCookie('access_token') || localStorage.getItem('access_token') || '';
 let sessionId = uuidv4().slice(0, 8);
@@ -13,7 +13,6 @@ localStorage.setItem('user_id', userId);
 localStorage.setItem('access_token', accessToken);
 console.log('Initial userId:', userId, 'SessionId:', sessionId, 'Is guest:', isGuest);
 
-// Comment socket.io vì server bookish-web-be có thể không hỗ trợ WebSocket
 const socket = io(BE_API_URL, { withCredentials: true });
 socket.on('supportRequest', (data) => {
     if (data.userId === userId && !isAdminChat) {
@@ -101,7 +100,7 @@ async function sendFeedback(userMessage, botReply, feedbackType) {
 }
 
 async function sendToAdmin(message) {
-    if (isSupportRequested || supportButtonLocked) return;
+    if (is(downloadedSupportRequested || supportButtonLocked)) return;
     supportButtonLocked = true;
     setTimeout(() => { supportButtonLocked = false; }, 2000);
     try {
@@ -194,7 +193,9 @@ async function sendMessage() {
             body: JSON.stringify({ message, user_id: userId, session_id: sessionId })
         });
 
-        chatBox.removeChild(loadingDiv);
+        if (chatBox.contains(loadingDiv)) {
+            chatBox.removeChild(loadingDiv);
+        }
         if (!res.ok) throw new Error(`Predict API failed: ${res.status}`);
 
         const data = await res.json();
@@ -234,7 +235,9 @@ async function sendMessage() {
             await sendToAdmin(message);
         }
     } catch (error) {
-        chatBox.removeChild(loadingDiv);
+        if (chatBox.contains(loadingDiv)) {
+            chatBox.removeChild(loadingDiv);
+        }
         console.error("Lỗi gửi tin nhắn chatbot:", error);
         chatBox.innerHTML += `<div class="bot-message">Lỗi khi xử lý tin nhắn. Đã gửi yêu cầu hỗ trợ đến admin!</div>`;
         chatBox.scrollTop = chatBox.scrollHeight;
