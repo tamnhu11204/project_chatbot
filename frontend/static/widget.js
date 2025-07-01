@@ -2,7 +2,7 @@
     console.log('Widget script loaded at', new Date().toLocaleString());
 
     const script = document.currentScript;
-    const iframeUrl = script.getAttribute("data-iframe-url") || "https://project-chatbot-p7fn.onrender.com/chatbot-ui";
+    const iframeUrl = script.getAttribute("data-iframe-url") || "https://project-chatbot-hgcl.onrender.com/chatbot-ui";
     const primaryColor = script.getAttribute("data-primary-color") || "#4CAF50";
 
     function getCookie(name) {
@@ -43,7 +43,7 @@
         iframe.setAttribute("sandbox", "allow-scripts allow-same-origin");
 
         const toggleBtn = document.createElement("div");
-        toggleBtn.innerHTML = `<img src="https://project-chatbot-p7fn.onrender.com/static/asset/logo.png?v=${Date.now()}" alt="Chatbot Logo" class="toggle-logo" onerror="this.src='https://project-chatbot-p7fn.onrender.com/static/asset/fallback.png'; this.onerror=null;">`;
+        toggleBtn.innerHTML = `<img src="https://project-chatbot-hgcl.onrender.com/static/asset/logo.png?v=${Date.now()}" alt="Chatbot Logo" class="toggle-logo" onerror="this.src='https://project-chatbot-hgcl.onrender.com/static/asset/fallback.png'; this.onerror=null;">`;
         toggleBtn.style.position = "fixed";
         toggleBtn.style.bottom = "20px";
         toggleBtn.style.right = "20px";

@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://project-chatbot-p7fn.onrender.com";
+const API_BASE_URL = "https://project-chatbot-hgcl.onrender.com";
 const BE_API_URL = "http://localhost:3001";
 let userId = getCookie('user_id') || localStorage.getItem('user_id') || `guest_${uuidv4()}`;
 let accessToken = getCookie('access_token') || localStorage.getItem('access_token') || '';

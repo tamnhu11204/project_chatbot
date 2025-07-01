@@ -60,7 +60,7 @@ if not all([MONGO_URI, MONGO_DB, FACEBOOK_PAGE_TOKEN, FACEBOOK_VERIFY_TOKEN]):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        os.getenv("API_BASE_URL", "https://project-chatbot-p7fn.onrender.com"),
+        os.getenv("API_BASE_URL", "https://project-chatbot-hgcl.onrender.com"),
         "http://localhost:3001",
         "http://localhost:8000"  # Để debug cục bộ
     ],
