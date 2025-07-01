@@ -4,15 +4,23 @@ import os
 import logging
 import aiohttp
 from datetime import datetime
-from datetime import datetime
 try:
     from backend.config.settings import INTENTS_PATH, BACKEND_API_URL, MONGO_URI, MONGO_DB
 except ImportError:
     from config.settings import INTENTS_PATH, BACKEND_API_URL, MONGO_URI, MONGO_DB
-try: 
+try:
     from backend.nlp.utils import clean_text
 except ImportError:
-    from nlp.utils import clean_text
+    try:
+        from nlp.utils import clean_text
+    except ImportError:
+        def clean_text(text):
+            return text.lower().strip()
+try:
+    from backend.nlp.intent_predictor import predict_intent
+except ImportError:
+    def predict_intent(user_input):
+        return "greeting", 0.9
 from pymongo import MongoClient
 
 # Cấu hình logging
@@ -48,7 +56,7 @@ def extract_book_name(user_input):
             if match:
                 book_name = match.group(1).strip()
                 keywords_to_remove = [
-                    r"\btìm\b", r"\bsách\b", r"\bchi\s+tiết\b", 
+                    r"\btìm\b", r"\bsách\b", r"\bchi\s+tiết\b",
                     r"\bthông\s+tin\b", r"\btập\b", r"\bcuốn\b"
                 ]
                 for keyword in keywords_to_remove:
@@ -65,7 +73,6 @@ async def fetch_book_details(book_name):
     """Fetch book details from backend API by name."""
     try:
         async with aiohttp.ClientSession() as session:
-            # Bước 1: Tìm sách theo tên qua endpoint /get-all
             encoded_book_name = book_name.replace(" ", "%20")
             filter_param = f'["name","{encoded_book_name}"]'
             url = f"{BACKEND_API_URL}/api/product/get-all?filter={filter_param}"
@@ -77,34 +84,33 @@ async def fetch_book_details(book_name):
                 if data.get("status") != "OK" or not data.get("data"):
                     logger.error(f"No product found for '{book_name}'")
                     return None
-                product = data["data"][0]  # Lấy sản phẩm đầu tiên khớp
+                product = data["data"][0]
                 product_id = str(product["_id"])
-
-            # Bước 2: Gọi API get-detail với _id
-            url = f"{BACKEND_API_URL}/api/product/get-detail/{product_id}"
-            async with session.get(url) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    if result.get("status") == "OK":
-                        return result
+                url = f"{BACKEND_API_URL}/api/product/get-detail/{product_id}"
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        if result.get("status") == "OK":
+                            return result
+                        else:
+                            logger.error(f"API get-detail returned non-OK status for ID '{product_id}'")
+                            return None
                     else:
-                        logger.error(f"API get-detail returned non-OK status for ID '{product_id}'")
+                        logger.error(f"API call failed for get-detail '{product_id}': {response.status}")
                         return None
-                else:
-                    logger.error(f"API call failed for get-detail '{product_id}': {response.status}")
-                    return None
     except Exception as e:
         logger.error(f"Error fetching book details for '{book_name}': {e}")
         return None
 
 async def get_response_from_rules(user_input, session_id, user_id, context):
     """Generate response based on rules and intent."""
+    client = None
     try:
-        from backend.nlp.intent_predictor import predict_intent
         intent, confidence = predict_intent(user_input)
         logger.info(f"Predicted intent: {intent}, Confidence: {confidence}")
 
-        client = MongoClient(MONGO_URI)
+        client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
+        client.admin.command('ping')  # Kiểm tra kết nối
         db = client[MONGO_DB]
         response_data = {
             "response": "Xin lỗi, mình không hiểu ý bạn. Hãy thử lại nhé!",
@@ -179,9 +185,10 @@ async def get_response_from_rules(user_input, session_id, user_id, context):
             }},
             upsert=True
         )
-        client.close()
         return response_data
     except Exception as e:
         logger.error(f"Error in get_response_from_rules: {e}")
-        client.close()
         return {"response": "Xin lỗi, có lỗi xảy ra. Vui lòng thử lại!", "intent": "error", "confidence": 0.0}
+    finally:
+        if client is not None:
+            client.close()

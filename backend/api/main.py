@@ -35,6 +35,8 @@ sys.path.insert(0, base_dir)
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logger.info(f"Base directory: {base_dir}")
+logger.info(f"sys.path: {sys.path}")
 
 # Tải biến môi trường từ .env (chỉ để debug cục bộ)
 try:
@@ -259,14 +261,13 @@ async def verify_webhook(request: Request):
     token = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge")
     if mode == "subscribe" and token == verify_token:
-        print(f"Verifying webhook with token: {token}, challenge: {challenge}")
-        print("Webhook verified successfully")
+        logger.info(f"Verifying webhook with token: {token}, challenge: {challenge}")
+        logger.info("Webhook verified successfully")
         return PlainTextResponse(challenge)
-    return {"error": "Invalid verification token"}, 403
+    return JSONResponse(content={"error": "Invalid verification token"}, status_code=403)
 
 @app.post("/webhook")
 async def handle_webhook(request: Request):
-    """Handle incoming messages from Facebook Messenger."""
     try:
         body = await request.json()
         logger.info(f"Received webhook payload: {body}")

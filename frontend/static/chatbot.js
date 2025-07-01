@@ -13,6 +13,24 @@ localStorage.setItem('user_id', userId);
 localStorage.setItem('access_token', accessToken);
 console.log('Initial userId:', userId, 'SessionId:', sessionId, 'Is guest:', isGuest);
 
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+
+function uuidv4() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+function formatTime(date) {
+    return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+}
+
 const socket = io(BE_API_URL, { withCredentials: true });
 socket.on('supportRequest', (data) => {
     if (data.userId === userId && !isAdminChat) {
@@ -100,7 +118,7 @@ async function sendFeedback(userMessage, botReply, feedbackType) {
 }
 
 async function sendToAdmin(message) {
-    if (is(downloadedSupportRequested || supportButtonLocked)) return;
+    if (isSupportRequested || supportButtonLocked) return;
     supportButtonLocked = true;
     setTimeout(() => { supportButtonLocked = false; }, 2000);
     try {
