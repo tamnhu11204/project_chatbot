@@ -72,6 +72,7 @@ def extract_book_name(user_input):
 async def fetch_book_details(book_name):
     """Fetch book details from backend API by name."""
     try:
+        logger.info(f"Attempting to fetch book details from {BACKEND_API_URL} for book: {book_name}")
         async with aiohttp.ClientSession() as session:
             encoded_book_name = book_name.replace(" ", "%20")
             filter_param = f'["name","{encoded_book_name}"]'
@@ -91,6 +92,7 @@ async def fetch_book_details(book_name):
                     if response.status == 200:
                         result = await response.json()
                         if result.get("status") == "OK":
+                            logger.info(f"Successfully fetched book details for '{book_name}'")
                             return result
                         else:
                             logger.error(f"API get-detail returned non-OK status for ID '{product_id}'")
@@ -109,8 +111,15 @@ async def get_response_from_rules(user_input, session_id, user_id, context):
         intent, confidence = predict_intent(user_input)
         logger.info(f"Predicted intent: {intent}, Confidence: {confidence}")
 
+        # Kết nối MongoDB
         client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
-        client.admin.command('ping')  # Kiểm tra kết nối
+        try:
+            client.admin.command('ping')
+            logger.info("MongoDB connection successful")
+        except Exception as e:
+            logger.error(f"MongoDB connection failed: {str(e)}")
+            raise
+
         db = client[MONGO_DB]
         response_data = {
             "response": "Xin lỗi, mình không hiểu ý bạn. Hãy thử lại nhé!",
@@ -155,6 +164,7 @@ async def get_response_from_rules(user_input, session_id, user_id, context):
                                 else:
                                     response_data["response"] = "Hiện tại không có khuyến mãi nào."
                             else:
+                                logger.error(f"Promotion API failed: {response.status}")
                                 response_data["response"] = "Không thể lấy thông tin khuyến mãi. Vui lòng thử lại sau!"
                 elif intent == "general_accept":
                     chat_log = db["chat_logs"].find_one({"session_id": session_id})
@@ -187,7 +197,7 @@ async def get_response_from_rules(user_input, session_id, user_id, context):
         )
         return response_data
     except Exception as e:
-        logger.error(f"Error in get_response_from_rules: {e}")
+        logger.error(f"Error in get_response_from_rules: {str(e)}")
         return {"response": "Xin lỗi, có lỗi xảy ra. Vui lòng thử lại!", "intent": "error", "confidence": 0.0}
     finally:
         if client is not None:

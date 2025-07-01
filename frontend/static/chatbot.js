@@ -1,5 +1,5 @@
 const API_BASE_URL = "https://project-chatbot-hgcl.onrender.com";
-const BE_API_URL = "http://localhost:3001";
+const BE_API_URL = "https://project-chatbot-hgcl.onrender.com"; // Cập nhật để khớp với API_BASE_URL
 let userId = getCookie('user_id') || localStorage.getItem('user_id') || `guest_${uuidv4()}`;
 let accessToken = getCookie('access_token') || localStorage.getItem('access_token') || '';
 let sessionId = uuidv4().slice(0, 8);
@@ -204,7 +204,10 @@ async function sendMessage() {
     chatBox.appendChild(loadingDiv);
 
     try {
-        console.log('Sending to bot:', { message, userId, sessionId });
+        console.log('Sending predict request:', {
+            url: `${API_BASE_URL}/predict`,
+            body: JSON.stringify({ message, user_id: userId, session_id: sessionId })
+        });
         const res = await fetch(`${API_BASE_URL}/predict`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -214,7 +217,7 @@ async function sendMessage() {
         if (chatBox.contains(loadingDiv)) {
             chatBox.removeChild(loadingDiv);
         }
-        if (!res.ok) throw new Error(`Predict API failed: ${res.status}`);
+        if (!res.ok) throw new Error(`Predict API failed: ${res.status} - ${await res.text()}`);
 
         const data = await res.json();
         let botResponse = data.response;
@@ -257,7 +260,7 @@ async function sendMessage() {
             chatBox.removeChild(loadingDiv);
         }
         console.error("Lỗi gửi tin nhắn chatbot:", error);
-        chatBox.innerHTML += `<div class="bot-message">Lỗi khi xử lý tin nhắn. Đã gửi yêu cầu hỗ trợ đến admin!</div>`;
+        chatBox.innerHTML += `<div class="bot-message">Lỗi khi xử lý tin nhắn: ${error.message}. Đã gửi yêu cầu hỗ trợ đến admin!</div>`;
         chatBox.scrollTop = chatBox.scrollHeight;
         await sendToAdmin(`Chatbot lỗi khi xử lý: ${message}`);
     }
